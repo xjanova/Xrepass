@@ -64,6 +64,7 @@ namespace ZipCrackerUI
             ZipFilePath = path;
             IsRarArchive = false;
             ArchiveType = "Unknown";
+            IsWinZipAES = false;
 
             try
             {
@@ -86,11 +87,9 @@ namespace ZipCrackerUI
                     // Check for ZIP signature (PK\x03\x04)
                     if (sig == 0x04034b50)
                     {
-                        ArchiveType = "ZIP/PKZIP";
-
                         var version = br.ReadUInt16();
                         var flags = br.ReadUInt16();
-                        br.ReadUInt16(); // compression
+                        var compression = br.ReadUInt16();
                         var modTime = br.ReadUInt16();
                         br.ReadUInt16(); // modDate
                         var crc32 = br.ReadUInt32();
@@ -100,21 +99,63 @@ namespace ZipCrackerUI
                         var extraLen = br.ReadUInt16();
 
                         var fileName = Encoding.ASCII.GetString(br.ReadBytes(fnLen));
-                        fs.Position += extraLen;
 
+                        // Check extra field for WinZip AES (0x9901)
+                        bool isAES = false;
+                        int aesStrength = 0;
+                        if (extraLen > 0)
+                        {
+                            var extraData = br.ReadBytes(extraLen);
+                            for (int i = 0; i < extraData.Length - 4; i++)
+                            {
+                                if (extraData[i] == 0x01 && extraData[i + 1] == 0x99)
+                                {
+                                    isAES = true;
+                                    if (i + 8 < extraData.Length)
+                                        aesStrength = extraData[i + 8]; // AES strength: 1=128, 2=192, 3=256
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Check if encrypted
                         if ((flags & 1) == 1 && compSize > 12)
                         {
-                            _encryptedHeader = br.ReadBytes(12);
-                            _expectedCrcHigh = (crc32 >> 24) & 0xFF;
-                            _expectedModTime = modTime;
+                            if (isAES || compression == 99) // WinZip AES uses compression method 99
+                            {
+                                // WinZip AES - use GPU (hashcat) for cracking
+                                IsWinZipAES = true;
+                                ArchiveType = $"WinZip AES-{(aesStrength == 1 ? 128 : aesStrength == 2 ? 192 : 256)}";
 
-                            Log($"Loaded: {Path.GetFileName(path)}");
-                            Log($"Archive type: {ArchiveType}");
-                            Log($"First encrypted file: {fileName}");
-                            Log($"CRC check byte: 0x{_expectedCrcHigh:X2}");
-                            Log($"Encryption: PKZIP Traditional");
+                                // Set dummy header - actual cracking done by hashcat
+                                _encryptedHeader = new byte[12];
+                                _expectedCrcHigh = 0;
+                                _expectedModTime = 0;
 
-                            return true;
+                                Log($"Loaded: {Path.GetFileName(path)}");
+                                Log($"Archive type: {ArchiveType}");
+                                Log($"First encrypted file: {fileName}");
+                                Log($"Encryption: WinZip AES (use GPU mode for best performance)");
+                                Log($"⚠️ CPU mode for AES is very slow - recommend GPU only");
+
+                                return true;
+                            }
+                            else
+                            {
+                                // Traditional PKZIP (ZipCrypto)
+                                ArchiveType = "ZIP/PKZIP";
+                                _encryptedHeader = br.ReadBytes(12);
+                                _expectedCrcHigh = (crc32 >> 24) & 0xFF;
+                                _expectedModTime = modTime;
+
+                                Log($"Loaded: {Path.GetFileName(path)}");
+                                Log($"Archive type: {ArchiveType}");
+                                Log($"First encrypted file: {fileName}");
+                                Log($"CRC check byte: 0x{_expectedCrcHigh:X2}");
+                                Log($"Encryption: PKZIP Traditional (ZipCrypto)");
+
+                                return true;
+                            }
                         }
 
                         if (compSize > 0 && (flags & 1) == 0)
@@ -168,6 +209,9 @@ namespace ZipCrackerUI
                 return false;
             }
         }
+
+        // Flag for WinZip AES encryption
+        public bool IsWinZipAES { get; private set; }
 
         public async Task StartAttackAsync(AttackMode mode)
         {
@@ -628,6 +672,15 @@ namespace ZipCrackerUI
                 // For RAR, always return true to verify with WinRAR
                 // This is slower but necessary for RAR encryption
                 return true;
+            }
+
+            // For WinZip AES, CPU cracking is not practical
+            // Return false - use GPU (hashcat) instead
+            if (IsWinZipAES)
+            {
+                // AES cannot be fast-checked with CPU
+                // This effectively disables CPU mode for AES archives
+                return false;
             }
 
             // PKZIP key initialization

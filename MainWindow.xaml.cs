@@ -675,8 +675,9 @@ namespace ZipCrackerUI
             _totalPossiblePasswords = 0;
             _masterCts = new CancellationTokenSource();
 
-            // Load file if not loaded
-            if (_engine.TotalAttempts == 0)
+            // Always reload file to ensure proper initialization
+            // This is necessary because TotalAttempts gets reset but _encryptedHeader might be null
+            if (string.IsNullOrEmpty(_engine.ZipFilePath) || _engine.ZipFilePath != txtFilePath.Text)
             {
                 LoadFile(txtFilePath.Text);
             }
