@@ -167,7 +167,7 @@ namespace ZipCrackerUI
                     if (isWinZipAES)
                     {
                         // WinZip AES
-                        return ExtractWinZipAESHash(br, fileName, compression, aesStrength, dataOffset, (int)compSize);
+                        return ExtractWinZipAESHash(br, fileName, compression, aesStrength, dataOffset, (int)compSize, uncompSize);
                     }
                     else
                     {
@@ -238,10 +238,11 @@ namespace ZipCrackerUI
 
         /// <summary>
         /// สร้าง hash สำหรับ WinZip AES (Mode 13600)
-        /// Format: $zip2$*type*mode*magic*salt*verify*compress_length*data*auth_length*auth*$/zip2$
+        /// Hashcat format: $zip2$*type*mode*magic*salt*verify_bytes*data_len*data*auth*$/zip2$
+        /// Example: $zip2$*0*3*0*e3222d3b65b5a2785b192d31e39ff9de*1320*e*19648c3e063c82a9ad3ef08ed833*3135c79ecb86cd6f48fc*$/zip2$
         /// </summary>
         private static HashInfo ExtractWinZipAESHash(BinaryReader br, string fileName, int compression,
-            int aesStrength, long dataOffset, int compSize)
+            int aesStrength, long dataOffset, int compSize, uint uncompSize)
         {
             // WinZip AES structure:
             // - Salt (8/12/16 bytes depending on strength 1/2/3)
@@ -291,23 +292,24 @@ namespace ZipCrackerUI
             Array.Copy(allData, saltSize, pv, 0, pvSize);
             Array.Copy(allData, allData.Length - authCodeSize, authCode, 0, authCodeSize);
 
-            // Limit encrypted data for hash (max 32KB to keep hash reasonable)
-            int dataToHash = Math.Min(encryptedDataSize, 32768);
+            // Limit encrypted data for hash (hashcat needs small portion)
+            // Use minimum data - just enough for verification
+            int dataToHash = Math.Min(encryptedDataSize, 32);
             var encData = new byte[dataToHash];
             Array.Copy(allData, saltSize + pvSize, encData, 0, dataToHash);
 
             // Build hash string in format for Hashcat mode 13600:
-            // $zip2$*type*mode*magic*salt*verify*compress_length*data*auth_length*auth*$/zip2$
+            // $zip2$*type*mode*magic*salt*verify*data_len*data*auth*$/zip2$
+            // Example: $zip2$*0*3*0*e3222d3b65b5a2785b192d31e39ff9de*1320*e*19648c3e063c82a9ad3ef08ed833*3135c79ecb86cd6f48fc*$/zip2$
             // Where:
             // - type = 0 (reserved)
-            // - mode = 1/2/3 for AES strength
+            // - mode = 1/2/3 for AES strength (128/192/256)
             // - magic = 0 (reserved)
             // - salt = hex encoded salt
-            // - verify = hex encoded password verification
-            // - compress_length = length of compressed data in hex
-            // - data = hex encoded encrypted data (first portion)
-            // - auth_length = length of auth code (always 10)
-            // - auth = hex encoded authentication code
+            // - verify = password verification bytes (hex, NOT separate)
+            // - data_len = encrypted data length in hex
+            // - data = hex encoded encrypted data
+            // - auth = hex encoded authentication code (10 bytes)
 
             var sb = new StringBuilder();
             sb.Append("$zip2$*");
@@ -320,12 +322,12 @@ namespace ZipCrackerUI
                 sb.Append(b.ToString("x2"));
             sb.Append("*");
 
-            // Password verification (hex)
+            // Password verification bytes (hex) - this is verify_bytes from header
             foreach (var b in pv)
                 sb.Append(b.ToString("x2"));
             sb.Append("*");
 
-            // Compressed data length (hex)
+            // Data length in hex
             sb.Append($"{dataToHash:x}*");
 
             // Encrypted data (hex)
@@ -333,10 +335,7 @@ namespace ZipCrackerUI
                 sb.Append(b.ToString("x2"));
             sb.Append("*");
 
-            // Auth code length
-            sb.Append($"{authCodeSize:x}*");
-
-            // Auth code (hex)
+            // Authentication code (hex) - 10 bytes
             foreach (var b in authCode)
                 sb.Append(b.ToString("x2"));
 
