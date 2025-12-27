@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ZipPasswordCracker</AssemblyName>
+    <RootNamespace>ZipCrackerUI</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+
+    <!-- Version Info -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+
+    <!-- Product Info -->
+    <Product>X-Repass</Product>
+    <Company>XMan Studio</Company>
+    <Authors>XMan Studio</Authors>
+    <Copyright>Copyright © 2024 XMan Studio. All rights reserved.</Copyright>
+    <Description>Archive Password Recovery Tool - Professional Edition</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="logo.png" />
+    <Resource Include="app.ico" />
+  </ItemGroup>
+
+</Project>

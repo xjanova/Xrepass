@@ -1,0 +1,51 @@
+# Build results
+bin/
+obj/
+out/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# NuGet
+packages/
+*.nupkg
+
+# Build outputs
+*.dll
+*.exe
+*.pdb
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.cache
+
+# Database files
+*.db
+*.sqlite
+
+# Test archives
+*.zip
+*.rar
+*.7z
+
+# Hashcat files
+hashcat/
+*.potfile
+*.hash
+
+# User-specific
+settings.txt
+tested_passwords.txt
+
+# OS files
+Thumbs.db
+.DS_Store
