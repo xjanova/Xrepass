@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -34,6 +35,7 @@ namespace ZipCrackerUI
         public int MinLength { get; set; } = 1;
         public int MaxLength { get; set; } = 8;
         public string CustomPattern { get; set; }
+        public string CustomCharset { get; set; } // Charset from UI checkboxes
         public bool EnableUtf8 { get; set; } = false;
 
         // Function to check if password was already tested (skip duplicates)
@@ -51,6 +53,7 @@ namespace ZipCrackerUI
         // Archive type detection
         public string ArchiveType { get; private set; } = "Unknown";
         public bool IsRarArchive { get; private set; }
+        public bool Is7zArchive { get; private set; }
 
         // Pre-computed CRC32 table
         private static readonly uint[] Crc32Table = GenerateCrc32Table();
@@ -63,8 +66,10 @@ namespace ZipCrackerUI
         {
             ZipFilePath = path;
             IsRarArchive = false;
+            Is7zArchive = false;
             ArchiveType = "Unknown";
             IsWinZipAES = false;
+            _7zipWarningShown = false; // Reset warning flag for new file
 
             try
             {
@@ -117,6 +122,7 @@ namespace ZipCrackerUI
                                 }
                             }
                         }
+
 
                         // Check if encrypted
                         if ((flags & 1) == 1 && compSize > 12)
@@ -197,6 +203,36 @@ namespace ZipCrackerUI
                         }
                     }
 
+                    // Check for 7-Zip signature: 37 7A BC AF 27 1C (7z..)
+                    // First 4 bytes: 0x377ABCAF in big-endian = 0xAFBC7A37 in little-endian
+                    if (sig == 0xAFBC7A37)
+                    {
+                        // Read next 2 bytes to verify: 27 1C
+                        if (fs.Position + 2 <= fs.Length)
+                        {
+                            byte b1 = br.ReadByte(); // Should be 0x27
+                            byte b2 = br.ReadByte(); // Should be 0x1C
+
+                            if (b1 == 0x27 && b2 == 0x1C)
+                            {
+                                Is7zArchive = true;
+                                ArchiveType = "7-Zip";
+
+                                Log($"Loaded: {Path.GetFileName(path)}");
+                                Log($"Archive type: {ArchiveType}");
+                                Log($"Encryption: 7-Zip AES-256 (use GPU mode)");
+                                Log($"⚠️ 7-Zip requires GPU mode (Hashcat)");
+
+                                // For 7z, we need hashcat for cracking
+                                _encryptedHeader = new byte[12];
+                                _expectedCrcHigh = 0;
+                                _expectedModTime = 0;
+
+                                return true;
+                            }
+                        }
+                    }
+
                     fs.Position = currentPos + 1; // Move back and scan byte by byte
                 }
 
@@ -240,29 +276,39 @@ namespace ZipCrackerUI
 
             try
             {
-                switch (mode)
+                // If CustomCharset is set, use progressive brute force with that charset
+                if (!string.IsNullOrEmpty(CustomCharset))
                 {
-                    case AttackMode.Smart:
-                        await SmartAttackAsync();
-                        break;
-                    case AttackMode.Dictionary:
-                        await DictionaryAttackAsync();
-                        break;
-                    case AttackMode.BruteForceNumbers:
-                        await BruteForceAsync("0123456789");
-                        break;
-                    case AttackMode.BruteForceLowercase:
-                        await BruteForceAsync("abcdefghijklmnopqrstuvwxyz");
-                        break;
-                    case AttackMode.BruteForceAlphanumeric:
-                        await BruteForceAsync("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
-                        break;
-                    case AttackMode.BruteForceAll:
-                        await BruteForceAsync("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=");
-                        break;
-                    case AttackMode.Pattern:
-                        await PatternAttackAsync();
-                        break;
+                    Log($"Using custom charset: {CustomCharset.Length} characters");
+                    await ProgressiveBruteForceAsync(CustomCharset);
+                }
+                else
+                {
+                    // Fallback to mode-based selection
+                    switch (mode)
+                    {
+                        case AttackMode.Smart:
+                            await SmartAttackAsync();
+                            break;
+                        case AttackMode.Dictionary:
+                            await DictionaryAttackAsync();
+                            break;
+                        case AttackMode.BruteForceNumbers:
+                            await ProgressiveBruteForceAsync("0123456789");
+                            break;
+                        case AttackMode.BruteForceLowercase:
+                            await ProgressiveBruteForceAsync("abcdefghijklmnopqrstuvwxyz");
+                            break;
+                        case AttackMode.BruteForceAlphanumeric:
+                            await ProgressiveBruteForceAsync("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+                            break;
+                        case AttackMode.BruteForceAll:
+                            await ProgressiveBruteForceAsync("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=");
+                            break;
+                        case AttackMode.Pattern:
+                            await PatternAttackAsync();
+                            break;
+                    }
                 }
 
                 if (_passwordFound)
@@ -322,50 +368,213 @@ namespace ZipCrackerUI
 
         private async Task SmartAttackAsync()
         {
-            Log("");
-            Log("[Phase 1] Testing known passwords...");
+            // Character sets ordered by probability
+            const string DIGITS = "0123456789";
+            const string LOWER = "abcdefghijklmnopqrstuvwxyz";
+            const string UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const string SPECIAL = "!@#$%^&*()_+-=";
 
-            // Known passwords from autorun.exe
-            var knownPasswords = new[]
+            Log("");
+            Log("[Phase 1] Testing common passwords...");
+
+            // Common passwords - most frequently used
+            var commonPasswords = new[]
             {
+                // Top common passwords
+                "123456", "password", "12345678", "qwerty", "123456789",
+                "12345", "1234", "111111", "1234567", "dragon",
+                "123123", "baseball", "iloveyou", "trustno1", "sunshine",
+                "master", "welcome", "shadow", "ashley", "football",
+                "jesus", "michael", "ninja", "mustang", "password1",
+                "abc123", "letmein", "monkey", "696969", "batman",
+                "admin", "Admin", "root", "test", "guest",
+                // Numeric patterns
+                "0000", "1111", "2222", "9999", "1212", "7777",
+                "0123", "1234", "2345", "6789", "4321",
+                "00000", "11111", "12321", "54321",
+                "000000", "123321", "654321", "121212",
+                // GameHouse specific
+                "gamehouse", "GameHouse", "GAMEHOUSE",
+                "gamehouse2017", "GameHouse2017",
                 "c0qmp9w48rmualzskdfjvn091287n5crp0um1",
                 "p920c8u4enoq)(&b(*&%v334&^",
                 "xyht25nHg4f52sLo0mw4Ji84ki3qi",
-                "gamehouse", "GameHouse", "GAMEHOUSE",
-                "gamehouse2017", "GameHouse2017",
-                "password", "Password", "PASSWORD",
-                "admin", "Admin", "123456", "12345678",
             };
 
-            foreach (var pwd in knownPasswords)
+            foreach (var pwd in commonPasswords)
             {
                 if (_cts.Token.IsCancellationRequested || _passwordFound) break;
                 await TestAndVerifyAsync(pwd);
             }
-
             if (_passwordFound) return;
 
             Log("");
-            Log("[Phase 2] Testing GameHouse patterns...");
-            await TestGamePatternsAsync();
+            Log("[Phase 2] Progressive brute force (smart order)...");
+            Log("Strategy: For each length, try simpler charsets first");
 
-            if (_passwordFound) return;
+            // Progressive attack: for each length, try simpler charsets first
+            // This is smarter than doing all lengths of one charset
+            for (int len = 1; len <= MaxLength && !_passwordFound && !_cts.Token.IsCancellationRequested; len++)
+            {
+                Log($"");
+                Log($"=== Length {len} ===");
+
+                // 1. Numbers only (fastest - only 10 chars)
+                if (!_passwordFound && !_cts.Token.IsCancellationRequested)
+                {
+                    long numCombos = (long)Math.Pow(DIGITS.Length, len);
+                    Log($"[{len}a] Digits only: {numCombos:N0} combinations");
+                    await BruteForceLengthAsync(DIGITS, len, numCombos);
+                }
+
+                // 2. Lowercase only (26 chars)
+                if (!_passwordFound && !_cts.Token.IsCancellationRequested && len <= 6)
+                {
+                    long lowerCombos = (long)Math.Pow(LOWER.Length, len);
+                    Log($"[{len}b] Lowercase only: {lowerCombos:N0} combinations");
+                    await BruteForceLengthAsync(LOWER, len, lowerCombos);
+                }
+
+                // 3. Uppercase only (26 chars) - less common but check short ones
+                if (!_passwordFound && !_cts.Token.IsCancellationRequested && len <= 4)
+                {
+                    long upperCombos = (long)Math.Pow(UPPER.Length, len);
+                    Log($"[{len}c] Uppercase only: {upperCombos:N0} combinations");
+                    await BruteForceLengthAsync(UPPER, len, upperCombos);
+                }
+
+                // 4. Mixed case letters (52 chars) - only for short passwords
+                if (!_passwordFound && !_cts.Token.IsCancellationRequested && len <= 4)
+                {
+                    long mixedCombos = (long)Math.Pow((LOWER + UPPER).Length, len);
+                    Log($"[{len}d] Mixed case: {mixedCombos:N0} combinations");
+                    await BruteForceLengthAsync(LOWER + UPPER, len, mixedCombos);
+                }
+
+                // 5. Alphanumeric (62 chars) - only for short passwords
+                if (!_passwordFound && !_cts.Token.IsCancellationRequested && len <= 4)
+                {
+                    long alphaCombos = (long)Math.Pow((LOWER + UPPER + DIGITS).Length, len);
+                    Log($"[{len}e] Alphanumeric: {alphaCombos:N0} combinations");
+                    await BruteForceLengthAsync(LOWER + UPPER + DIGITS, len, alphaCombos);
+                }
+
+                // 6. With special chars (76 chars) - only for very short passwords
+                if (!_passwordFound && !_cts.Token.IsCancellationRequested && len <= 3)
+                {
+                    long allCombos = (long)Math.Pow((LOWER + UPPER + DIGITS + SPECIAL).Length, len);
+                    Log($"[{len}f] All chars: {allCombos:N0} combinations");
+                    await BruteForceLengthAsync(LOWER + UPPER + DIGITS + SPECIAL, len, allCombos);
+                }
+            }
+
+            if (!_passwordFound)
+            {
+                Log("");
+                Log("[Phase 3] Extended lowercase search (7-8 chars)...");
+                for (int len = 7; len <= 8 && !_passwordFound && !_cts.Token.IsCancellationRequested; len++)
+                {
+                    long combos = (long)Math.Pow(LOWER.Length, len);
+                    Log($"Lowercase {len} chars: {combos:N0} combinations");
+                    await BruteForceLengthAsync(LOWER, len, combos);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Progressive brute force - ไล่จาก charset ง่ายไปยาก สำหรับแต่ละความยาว
+        /// เช่น ถ้าเลือก Alphanumeric จะไล่: digits -> lowercase -> uppercase -> mixed -> alphanumeric
+        /// </summary>
+        private async Task ProgressiveBruteForceAsync(string fullCharset)
+        {
+            const string DIGITS = "0123456789";
+            const string LOWER = "abcdefghijklmnopqrstuvwxyz";
+            const string UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const string SPECIAL = "!@#$%^&*()_+-=";
+
+            // Determine which charsets are included in the full charset
+            bool hasDigits = fullCharset.Any(c => DIGITS.Contains(c));
+            bool hasLower = fullCharset.Any(c => LOWER.Contains(c));
+            bool hasUpper = fullCharset.Any(c => UPPER.Contains(c));
+            bool hasSpecial = fullCharset.Any(c => SPECIAL.Contains(c));
 
             Log("");
-            Log("[Phase 3] Testing substrings of known passwords...");
-            await TestSubstringsAsync();
+            Log("Progressive brute force strategy:");
+            Log("For each length, try simpler charsets first");
 
-            if (_passwordFound) return;
+            for (int len = MinLength; len <= MaxLength && !_passwordFound && !_cts.Token.IsCancellationRequested; len++)
+            {
+                Log($"");
+                Log($"=== Length {len} ===");
 
-            Log("");
-            Log("[Phase 4] Brute force numbers (1-10 digits)...");
-            await BruteForceAsync("0123456789", 1, 10);
+                // 1. Digits only (if included)
+                if (hasDigits && !_passwordFound && !_cts.Token.IsCancellationRequested)
+                {
+                    string charset = new string(fullCharset.Where(c => DIGITS.Contains(c)).ToArray());
+                    if (charset.Length > 0)
+                    {
+                        long combos = (long)Math.Pow(charset.Length, len);
+                        Log($"[{len}.1] Digits ({charset.Length} chars): {combos:N0}");
+                        await BruteForceLengthAsync(charset, len, combos);
+                    }
+                }
 
-            if (_passwordFound) return;
+                // 2. Lowercase only (if included)
+                if (hasLower && !_passwordFound && !_cts.Token.IsCancellationRequested)
+                {
+                    string charset = new string(fullCharset.Where(c => LOWER.Contains(c)).ToArray());
+                    if (charset.Length > 0)
+                    {
+                        long combos = (long)Math.Pow(charset.Length, len);
+                        Log($"[{len}.2] Lowercase ({charset.Length} chars): {combos:N0}");
+                        await BruteForceLengthAsync(charset, len, combos);
+                    }
+                }
 
-            Log("");
-            Log("[Phase 5] Brute force lowercase (1-6 chars)...");
-            await BruteForceAsync("abcdefghijklmnopqrstuvwxyz", 1, 6);
+                // 3. Uppercase only (if included)
+                if (hasUpper && !_passwordFound && !_cts.Token.IsCancellationRequested)
+                {
+                    string charset = new string(fullCharset.Where(c => UPPER.Contains(c)).ToArray());
+                    if (charset.Length > 0)
+                    {
+                        long combos = (long)Math.Pow(charset.Length, len);
+                        Log($"[{len}.3] Uppercase ({charset.Length} chars): {combos:N0}");
+                        await BruteForceLengthAsync(charset, len, combos);
+                    }
+                }
+
+                // 4. Letters mixed (lower + upper, if both included)
+                if (hasLower && hasUpper && !_passwordFound && !_cts.Token.IsCancellationRequested)
+                {
+                    string charset = new string(fullCharset.Where(c => LOWER.Contains(c) || UPPER.Contains(c)).ToArray());
+                    if (charset.Length > 0)
+                    {
+                        long combos = (long)Math.Pow(charset.Length, len);
+                        Log($"[{len}.4] Mixed case ({charset.Length} chars): {combos:N0}");
+                        await BruteForceLengthAsync(charset, len, combos);
+                    }
+                }
+
+                // 5. Alphanumeric (letters + digits, if all included)
+                if ((hasLower || hasUpper) && hasDigits && !_passwordFound && !_cts.Token.IsCancellationRequested)
+                {
+                    string charset = new string(fullCharset.Where(c => LOWER.Contains(c) || UPPER.Contains(c) || DIGITS.Contains(c)).ToArray());
+                    if (charset.Length > 0)
+                    {
+                        long combos = (long)Math.Pow(charset.Length, len);
+                        Log($"[{len}.5] Alphanumeric ({charset.Length} chars): {combos:N0}");
+                        await BruteForceLengthAsync(charset, len, combos);
+                    }
+                }
+
+                // 6. Full charset (including special if any)
+                if (hasSpecial && !_passwordFound && !_cts.Token.IsCancellationRequested)
+                {
+                    long combos = (long)Math.Pow(fullCharset.Length, len);
+                    Log($"[{len}.6] Full charset ({fullCharset.Length} chars): {combos:N0}");
+                    await BruteForceLengthAsync(fullCharset, len, combos);
+                }
+            }
         }
 
         private async Task TestGamePatternsAsync()
@@ -555,7 +764,10 @@ namespace ZipCrackerUI
                                 }
                             }
 
-                            // Increment from position 1
+                            // For length 1, each thread handles one character, so break after testing
+                            if (length == 1) break;
+
+                            // Increment from rightmost position (but not position 0 which is fixed per thread)
                             int pos = length - 1;
                             while (pos >= 1)
                             {
@@ -565,6 +777,7 @@ namespace ZipCrackerUI
                                 pos--;
                             }
 
+                            // If we've exhausted all combinations for this first character, exit
                             if (pos < 1) break;
                         }
                     });
@@ -654,6 +867,9 @@ namespace ZipCrackerUI
             }
         }
 
+        // Flag to track if 7-Zip availability was already checked and warned
+        private bool _7zipWarningShown = false;
+
         private bool TestPasswordFast(string password)
         {
             // Skip if already tested
@@ -674,13 +890,75 @@ namespace ZipCrackerUI
                 return true;
             }
 
-            // For WinZip AES, CPU cracking is not practical
-            // Return false - use GPU (hashcat) instead
+            // For WinZip AES - need 7-Zip for verification
             if (IsWinZipAES)
             {
-                // AES cannot be fast-checked with CPU
-                // This effectively disables CPU mode for AES archives
-                return false;
+                // Check if 7-Zip is available before attempting verification
+                string sevenZipPath = Find7ZipPath();
+
+                if (sevenZipPath == null)
+                {
+                    // 7-Zip not found - can't verify WinZip AES passwords
+                    if (!_7zipWarningShown)
+                    {
+                        _7zipWarningShown = true;
+                        Log("");
+                        Log("=================================================");
+                        Log("ERROR: Cannot crack WinZip AES without 7-Zip!");
+                        Log("=================================================");
+                        Log("WinZip AES encryption requires 7-Zip for password verification.");
+                        Log("");
+                        Log("Solutions:");
+                        Log("1. Install 7-Zip from: https://www.7-zip.org/");
+                        Log("2. Or use GPU mode (Hashcat) - much faster for AES");
+                        Log("");
+                    }
+                    return false; // Skip this password - can't verify without 7-Zip
+                }
+
+                // Log first time 7-Zip is found
+                if (_totalAttempts == 1)
+                {
+                    Log($"✓ Using 7-Zip for AES verification: {sevenZipPath}");
+                }
+
+                // 7-Zip available - return true to verify with 7-Zip
+                return true;
+            }
+
+            // For 7-Zip archives - need 7-Zip for verification
+            if (Is7zArchive)
+            {
+                // Check if 7-Zip is available
+                string sevenZipPath = Find7ZipPath();
+
+                if (sevenZipPath == null)
+                {
+                    if (!_7zipWarningShown)
+                    {
+                        _7zipWarningShown = true;
+                        Log("");
+                        Log("=================================================");
+                        Log("ERROR: Cannot crack 7-Zip archives without 7-Zip!");
+                        Log("=================================================");
+                        Log("7-Zip encryption requires 7-Zip for password verification.");
+                        Log("");
+                        Log("Solutions:");
+                        Log("1. Install 7-Zip from: https://www.7-zip.org/");
+                        Log("2. Or use GPU mode (Hashcat) - much faster");
+                        Log("");
+                    }
+                    return false;
+                }
+
+                return true;
+            }
+
+            // PKZIP (ZipCrypto) - ใช้ fast header check
+            if (_encryptedHeader == null || _encryptedHeader.Length < 12)
+            {
+                // ถ้าไม่มี header ให้ไป verify ตรงๆ
+                return true;
             }
 
             // PKZIP key initialization
@@ -751,6 +1029,131 @@ namespace ZipCrackerUI
         // Now using HashFormatDetector.ExtractHash() which handles all formats
 
         public bool VerifyPassword(string password)
+        {
+            string ext = Path.GetExtension(ZipFilePath).ToLowerInvariant();
+            bool isZip = ext == ".zip" || IsWinZipAES;
+
+            // For ZIP files, try 7-Zip first (better for AES)
+            if (isZip)
+            {
+                var result = VerifyWith7Zip(password);
+                if (result.HasValue) return result.Value;
+            }
+
+            // Try WinRAR/UnRAR for RAR files or as fallback
+            return VerifyWithWinRAR(password);
+        }
+
+        // Cached 7-Zip path to avoid repeated searches
+        private static string _cached7ZipPath = null;
+        private static bool _7zipSearched = false;
+
+        /// <summary>
+        /// Find 7-Zip executable path (cached)
+        /// </summary>
+        private string Find7ZipPath()
+        {
+            if (_7zipSearched)
+            {
+                return _cached7ZipPath;
+            }
+
+            // Try to find 7-Zip in common locations
+            string[] sevenZipPaths = {
+                @"C:\Program Files\7-Zip\7z.exe",
+                @"C:\Program Files (x86)\7-Zip\7z.exe",
+                @"D:\Program Files\7-Zip\7z.exe",
+                @"D:\Program Files (x86)\7-Zip\7z.exe",
+                @"E:\Program Files\7-Zip\7z.exe",
+                Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\7-Zip\7z.exe"),
+                Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\7-Zip\7z.exe"),
+                Environment.ExpandEnvironmentVariables(@"%LocalAppData%\Programs\7-Zip\7z.exe"),
+            };
+
+            string sevenZipPath = null;
+            foreach (var path in sevenZipPaths)
+            {
+                if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                {
+                    sevenZipPath = path;
+                    break;
+                }
+            }
+
+            _7zipSearched = true;
+            _cached7ZipPath = sevenZipPath;
+
+            return sevenZipPath;
+        }
+
+        private bool? VerifyWith7Zip(string password)
+        {
+            string sevenZipPath = Find7ZipPath();
+
+            if (sevenZipPath == null)
+            {
+                return null; // Not found, try other methods
+            }
+
+            return TryExtractWith7Zip(sevenZipPath, password);
+        }
+
+        private bool? TryExtractWith7Zip(string sevenZipPath, string password)
+        {
+            try
+            {
+                // Use 't' (test) command instead of 'x' (extract) - much faster!
+                // 7z t -p<password> archive.zip
+                var args = $"t -p\"{password}\" \"{ZipFilePath}\"";
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = sevenZipPath,
+                    Arguments = args,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                using var process = Process.Start(psi);
+                if (process == null)
+                {
+                    Log($"ERROR: Failed to start 7-Zip process");
+                    return null;
+                }
+
+                string output = process.StandardOutput.ReadToEnd();
+                string error = process.StandardError.ReadToEnd();
+
+                if (!process.WaitForExit(10000)) // 10 second timeout
+                {
+                    try { process.Kill(); } catch { }
+                    return false;
+                }
+
+                // Exit code 0 = success (password correct)
+                // Exit code 2 = wrong password or CRC error
+                int exitCode = process.ExitCode;
+
+                // Check for "Everything is Ok" in output to confirm success
+                bool success = exitCode == 0 && output.Contains("Everything is Ok");
+
+                // Debug: Log when password is found
+                if (success)
+                {
+                    Log($"✓ 7-Zip verified password: {password}");
+                }
+
+                return success;
+            }
+            catch
+            {
+                return null; // Error, try other methods
+            }
+        }
+
+        private bool VerifyWithWinRAR(string password)
         {
             // Try to find WinRAR or UnRAR in common locations
             string[] possiblePaths = {
