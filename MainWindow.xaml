@@ -182,14 +182,29 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Browse Button - Larger and more visible -->
-                    <Button x:Name="btnBrowse" Grid.Column="0" Width="130" Height="40"
-                            Style="{StaticResource ModernButton}" Click="BtnBrowse_Click" Margin="0,0,12,0" Padding="12,8">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="📂" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="OPEN" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
+                    <!-- Browse and Resume Buttons -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Button x:Name="btnBrowse" Width="130" Height="40"
+                                Style="{StaticResource ModernButton}" Click="BtnBrowse_Click" Margin="0,0,8,0" Padding="12,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="📂" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="OPEN" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="btnResume" Width="130" Height="40"
+                                Style="{StaticResource PrimaryButton}" Click="BtnResume_Click" Margin="0,0,12,0" Padding="12,8"
+                                Visibility="Collapsed" ToolTip="Resume previous session">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⏯" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="RESUME" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="btnDeleteCheckpoints" Width="40" Height="40"
+                                Style="{StaticResource DangerButton}" Click="BtnDeleteCheckpoints_Click" Padding="8"
+                                Visibility="Collapsed" ToolTip="Delete all checkpoints">
+                            <TextBlock Text="🗑️" FontSize="18" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Button>
+                    </StackPanel>
 
                     <!-- File Path - Takes remaining space -->
                     <TextBox x:Name="txtFilePath" Grid.Column="1" Style="{StaticResource ModernTextBox}"
@@ -239,34 +254,41 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Attack Mode -->
-                    <StackPanel Grid.Column="0" Margin="0,0,20,0">
-                        <TextBlock Text="🎯 ATTACK MODE" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
-                        <ComboBox x:Name="cmbAttackMode" SelectedIndex="0" Width="160" Height="36" FontSize="12">
-                            <ComboBoxItem Content="Smart Attack"/>
-                            <ComboBoxItem Content="Dictionary"/>
-                            <ComboBoxItem Content="Numbers Only"/>
-                            <ComboBoxItem Content="Lowercase"/>
-                            <ComboBoxItem Content="Alphanumeric"/>
-                            <ComboBoxItem Content="All Characters"/>
-                            <ComboBoxItem Content="Pattern"/>
-                        </ComboBox>
-                    </StackPanel>
-
                     <!-- Password Length -->
-                    <StackPanel Grid.Column="1" Margin="0,0,20,0">
+                    <StackPanel Grid.Column="0" Margin="0,0,20,0">
                         <TextBlock Text="📏 PASSWORD LENGTH" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBox x:Name="txtMinLen" Style="{StaticResource ModernTextBox}" Text="1" Width="55" Height="40" TextAlignment="Center" VerticalContentAlignment="Center"/>
+                            <TextBox x:Name="txtMinLen" Style="{StaticResource ModernTextBox}" Text="1" Width="55" Height="40" TextAlignment="Center" VerticalContentAlignment="Center" TextChanged="PasswordLength_Changed" LostFocus="PasswordLength_LostFocus"/>
                             <TextBlock Text="TO" Foreground="#ffffff" VerticalAlignment="Center" Margin="10,0" FontSize="13" FontWeight="Bold"/>
-                            <TextBox x:Name="txtMaxLen" Style="{StaticResource ModernTextBox}" Text="8" Width="55" Height="40" TextAlignment="Center" VerticalContentAlignment="Center"/>
+                            <TextBox x:Name="txtMaxLen" Style="{StaticResource ModernTextBox}" Text="8" Width="55" Height="40" TextAlignment="Center" VerticalContentAlignment="Center" TextChanged="PasswordLength_Changed" LostFocus="PasswordLength_LostFocus"/>
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Pattern -->
+                    <!-- Charset Options -->
+                    <StackPanel Grid.Column="1" Margin="0,0,20,0">
+                        <TextBlock Text="🔤 CHARACTER SET" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,6"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <CheckBox x:Name="chkNumbers" Grid.Row="0" Grid.Column="0" Content="0-9" IsChecked="True" FontSize="11" Margin="0,0,10,2" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
+                            <CheckBox x:Name="chkLowercase" Grid.Row="0" Grid.Column="1" Content="a-z" IsChecked="True" FontSize="11" Margin="0,0,0,2" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
+                            <CheckBox x:Name="chkUppercase" Grid.Row="1" Grid.Column="0" Content="A-Z" FontSize="11" Margin="0,0,10,0" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
+                            <CheckBox x:Name="chkSpecial" Grid.Row="1" Grid.Column="1" Content="!@#$" FontSize="11" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
+                        </Grid>
+                        <TextBlock x:Name="lblCharsetInfo" Text="36 chars" Foreground="{StaticResource TextDimBrush}" FontSize="9" Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <!-- Total Passwords Info -->
                     <StackPanel Grid.Column="2" Margin="0,0,20,0">
-                        <TextBlock Text="🔤 PATTERN" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
-                        <TextBox x:Name="txtPattern" Style="{StaticResource ModernTextBox}" Text="????" Width="110" Height="40" TextAlignment="Center" VerticalContentAlignment="Center"/>
+                        <TextBlock Text="📊 TOTAL PASSWORDS" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
+                        <TextBlock x:Name="lblTotalPasswords" Text="--" Foreground="#ffaa00" FontSize="16" FontWeight="Bold"/>
+                        <TextBlock x:Name="lblTotalPasswordsDetail" Text="calculating..." Foreground="{StaticResource TextDimBrush}" FontSize="9"/>
                     </StackPanel>
 
                     <!-- CPU Threads -->
@@ -284,6 +306,7 @@
                                 <CheckBox x:Name="chkGpu" Content="🎮 GPU" Checked="ChkGpu_Checked" Unchecked="ChkGpu_Unchecked" FontSize="13" VerticalAlignment="Center"/>
                             </StackPanel>
                             <CheckBox x:Name="chkUtf8" Content="🌏 UTF-8 (ภาษาไทย/อื่นๆ)" FontSize="10" VerticalAlignment="Center"
+                                      Checked="ChkUtf8_Checked" Unchecked="ChkUtf8_Unchecked"
                                       ToolTip="รองรับภาษาไทยและภาษาอื่นๆ (ช้ากว่าปกติ)"/>
                         </StackPanel>
                     </StackPanel>
@@ -320,6 +343,7 @@
                              IsReadOnly="True" Background="Transparent" Foreground="Transparent" BorderThickness="0"/>
                     <Button x:Name="btnBrowseHashcat" Grid.Column="5" Visibility="Collapsed" Width="0" Height="0"
                             Background="Transparent" BorderThickness="0" Click="BtnBrowseHashcat_Click"/>
+                    <TextBox x:Name="txtPattern" Grid.Column="5" Visibility="Collapsed" Width="0" Height="0" Text="????"/>
                 </Grid>
             </Border>
 
@@ -554,10 +578,12 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="22"/>
+                            <RowDefinition Height="50"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="32"/>
                         </Grid.RowDefinitions>
 
+                        <!-- Header -->
                         <Border Grid.Row="0" Background="#081810" CornerRadius="8,8,0,0" Padding="8,3">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="💻" FontSize="10" Margin="0,0,4,0"/>
@@ -565,9 +591,58 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBox x:Name="txtLog" Grid.Row="1" Style="{StaticResource LogTextBox}" Foreground="#00ff88"/>
+                        <!-- Progress Section -->
+                        <Border Grid.Row="1" Background="#061208" Padding="8,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
-                        <Border Grid.Row="2" Background="#081810" CornerRadius="0,0,8,8" Padding="8,4">
+                                <!-- Pattern and Status -->
+                                <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,4">
+                                    <Border Background="#0a2a1a" CornerRadius="3" Padding="6,2" Margin="0,0,6,0">
+                                        <TextBlock x:Name="lblCpuPattern" Text="Idle" Foreground="#00ff88" FontSize="9" FontWeight="Bold" MaxWidth="180" TextTrimming="CharacterEllipsis"/>
+                                    </Border>
+                                    <Border Background="#0a2a1a" CornerRadius="3" Padding="6,2" Margin="0,0,6,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Checked: " Foreground="#2a5a3a" FontSize="9"/>
+                                            <TextBlock x:Name="lblCpuChecked" Text="0" Foreground="#00ff88" FontSize="9" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="#0a2a1a" CornerRadius="3" Padding="6,2" Margin="0,0,6,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="ETA: " Foreground="#2a5a3a" FontSize="9"/>
+                                            <TextBlock x:Name="lblCpuEta" Text="--" Foreground="#00ff88" FontSize="9" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock x:Name="lblCpuCurrentAction" Text="Idle" Foreground="#4a8a5a" FontSize="9" VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <!-- Progress Bar -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" x:Name="lblCpuChunkProgress" Text="0%" Foreground="#00ff88" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <ProgressBar Grid.Row="1" Grid.Column="1" x:Name="progressBarCpuChunk" Height="8" Minimum="0" Maximum="100" Value="0">
+                                    <ProgressBar.Foreground>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#00ff88" Offset="0"/>
+                                            <GradientStop Color="#00cc66" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </ProgressBar.Foreground>
+                                </ProgressBar>
+                                <TextBlock Grid.Row="1" Grid.Column="2" x:Name="lblCpuChunkInfo" Text="0/0" Foreground="#2a5a3a" FontSize="8" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Log -->
+                        <TextBox x:Name="txtLog" Grid.Row="2" Style="{StaticResource LogTextBox}" Foreground="#00ff88"/>
+
+                        <!-- Footer Stats -->
+                        <Border Grid.Row="3" Background="#081810" CornerRadius="0,0,8,8" Padding="8,4">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -583,6 +658,40 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
+
+                        <!-- CPU Found Password Overlay -->
+                        <Border x:Name="borderFoundCpu" Grid.RowSpan="4" CornerRadius="8" Padding="16" Visibility="Collapsed"
+                                VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#0a2a1a" Offset="0"/>
+                                    <GradientStop Color="#1a3a2a" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Effect>
+                                <DropShadowEffect Color="#00ff88" BlurRadius="25" ShadowDepth="0" Opacity="0.7"/>
+                            </Border.Effect>
+                            <StackPanel>
+                                <TextBlock Text="🎉 PASSWORD FOUND!" Foreground="#00ff88"
+                                           FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                <TextBox x:Name="lblFoundPwdCpu" Text="" Background="Transparent"
+                                         Foreground="#00ff88" FontSize="18" FontFamily="Consolas"
+                                         FontWeight="Bold" HorizontalAlignment="Center" BorderThickness="0"
+                                         IsReadOnly="True" Margin="0,8,0,0"/>
+                                <TextBlock Text="Found by CPU" Foreground="#2a5a3a" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                                    <Button Content="📋 Copy" Click="BtnCopyCpu_Click" Style="{StaticResource SuccessButton}" Width="70" FontSize="11"/>
+                                    <Button Content="⏹ Stop" Click="BtnStopFromFound_Click" Width="70" Margin="8,0,0,0" FontSize="11">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                <Setter Property="Background" Value="#2a1a1a"/>
+                                                <Setter Property="Foreground" Value="#ff6b35"/>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Border>
 
@@ -591,10 +700,12 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="22"/>
+                            <RowDefinition Height="50"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="32"/>
                         </Grid.RowDefinitions>
 
+                        <!-- Header -->
                         <Border Grid.Row="0" Background="#180808" CornerRadius="8,8,0,0" Padding="8,3">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🎮" FontSize="10" Margin="0,0,4,0"/>
@@ -602,9 +713,58 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBox x:Name="txtGpuLog" Grid.Row="1" Style="{StaticResource LogTextBox}" Foreground="#ff6b35"/>
+                        <!-- Progress Section -->
+                        <Border Grid.Row="1" Background="#120806" Padding="8,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
-                        <Border Grid.Row="2" Background="#180808" CornerRadius="0,0,8,8" Padding="8,4">
+                                <!-- Pattern and Status -->
+                                <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,4">
+                                    <Border Background="#2a0a0a" CornerRadius="3" Padding="6,2" Margin="0,0,6,0">
+                                        <TextBlock x:Name="lblGpuPattern" Text="Idle" Foreground="#ff6b35" FontSize="9" FontWeight="Bold" MaxWidth="180" TextTrimming="CharacterEllipsis"/>
+                                    </Border>
+                                    <Border Background="#2a0a0a" CornerRadius="3" Padding="6,2" Margin="0,0,6,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Checked: " Foreground="#5a2a2a" FontSize="9"/>
+                                            <TextBlock x:Name="lblGpuChecked" Text="0" Foreground="#ff6b35" FontSize="9" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="#2a0a0a" CornerRadius="3" Padding="6,2" Margin="0,0,6,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="ETA: " Foreground="#5a2a2a" FontSize="9"/>
+                                            <TextBlock x:Name="lblGpuEta" Text="--" Foreground="#ff6b35" FontSize="9" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock x:Name="lblGpuCurrentAction" Text="Idle" Foreground="#8a5a4a" FontSize="9" VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <!-- Progress Bar -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" x:Name="lblGpuChunkProgress" Text="0%" Foreground="#ff6b35" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <ProgressBar Grid.Row="1" Grid.Column="1" x:Name="progressBarGpuChunk" Height="8" Minimum="0" Maximum="100" Value="0">
+                                    <ProgressBar.Foreground>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#ff6b35" Offset="0"/>
+                                            <GradientStop Color="#ff3300" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </ProgressBar.Foreground>
+                                </ProgressBar>
+                                <TextBlock Grid.Row="1" Grid.Column="2" x:Name="lblGpuChunkInfo" Text="0/0" Foreground="#5a2a2a" FontSize="8" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Log -->
+                        <TextBox x:Name="txtGpuLog" Grid.Row="2" Style="{StaticResource LogTextBox}" Foreground="#ff6b35"/>
+
+                        <!-- Footer Stats -->
+                        <Border Grid.Row="3" Background="#180808" CornerRadius="0,0,8,8" Padding="8,4">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -620,35 +780,48 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
-                    </Grid>
-                </Border>
 
-                <!-- Found Password Overlay (shown over GPU log when password found) -->
-                <Border x:Name="borderFound" Grid.Column="1" CornerRadius="12" Padding="16" Visibility="Collapsed"
-                        VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20">
-                    <Border.Background>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#0a2a1a" Offset="0"/>
-                            <GradientStop Color="#1a3a2a" Offset="1"/>
-                        </LinearGradientBrush>
-                    </Border.Background>
-                    <Border.Effect>
-                        <DropShadowEffect Color="#00ff88" BlurRadius="25" ShadowDepth="0" Opacity="0.7"/>
-                    </Border.Effect>
-                    <StackPanel>
-                        <TextBlock Text="🎉 PASSWORD FOUND!" Foreground="{StaticResource SuccessBrush}"
-                                   FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
-                        <TextBox x:Name="lblFoundPwd" Text="" Background="Transparent"
-                                 Foreground="{StaticResource SuccessBrush}" FontSize="18" FontFamily="Consolas"
-                                 FontWeight="Bold" HorizontalAlignment="Center" BorderThickness="0"
-                                 IsReadOnly="True" Margin="0,8,0,0"/>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
-                            <Button Content="📋 Copy" Click="BtnCopy_Click" Style="{StaticResource SuccessButton}" Width="70" FontSize="11"/>
-                            <Button x:Name="btnContinue" Content="▶️ Continue" Click="BtnContinue_Click"
-                                    Style="{StaticResource ModernButton}" Width="90" Margin="8,0,0,0"
-                                    ToolTip="Continue searching"/>
-                        </StackPanel>
-                    </StackPanel>
+                        <!-- GPU Found Password Overlay -->
+                        <Border x:Name="borderFoundGpu" Grid.RowSpan="4" CornerRadius="8" Padding="16" Visibility="Collapsed"
+                                VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#2a1a0a" Offset="0"/>
+                                    <GradientStop Color="#3a2a1a" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Effect>
+                                <DropShadowEffect Color="#ff6b35" BlurRadius="25" ShadowDepth="0" Opacity="0.7"/>
+                            </Border.Effect>
+                            <StackPanel>
+                                <TextBlock Text="🎉 PASSWORD FOUND!" Foreground="#ff6b35"
+                                           FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                <TextBox x:Name="lblFoundPwdGpu" Text="" Background="Transparent"
+                                         Foreground="#ff6b35" FontSize="18" FontFamily="Consolas"
+                                         FontWeight="Bold" HorizontalAlignment="Center" BorderThickness="0"
+                                         IsReadOnly="True" Margin="0,8,0,0"/>
+                                <TextBlock Text="Found by GPU" Foreground="#5a3a2a" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                                    <Button Content="📋 Copy" Click="BtnCopyGpu_Click" Width="70" FontSize="11">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                <Setter Property="Background" Value="#2a1a0a"/>
+                                                <Setter Property="Foreground" Value="#ff6b35"/>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="⏹ Stop" Click="BtnStopFromFound_Click" Width="70" Margin="8,0,0,0" FontSize="11">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                <Setter Property="Background" Value="#1a1a2a"/>
+                                                <Setter Property="Foreground" Value="#ff6b35"/>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </Border>
             </Grid>
 

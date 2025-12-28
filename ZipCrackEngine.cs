@@ -17,6 +17,7 @@ namespace ZipCrackerUI
         public event Action<long, long> OnProgress; // current, total
         public event Action<string> OnPasswordFound;
         public event Action<string> OnStatusChanged;
+        public event Action<string> OnPatternChanged; // New: current pattern description
 
         // Statistics
         private long _totalAttempts;
@@ -28,6 +29,7 @@ namespace ZipCrackerUI
         public long TotalPossiblePasswords { get; private set; }
         public bool IsRunning { get; private set; }
         public DateTime StartTime { get; private set; }
+        public string CurrentPattern { get; private set; } = "Idle"; // Current pattern being tested
 
         // Configuration
         public string ZipFilePath { get; set; }
@@ -37,6 +39,7 @@ namespace ZipCrackerUI
         public string CustomPattern { get; set; }
         public string CustomCharset { get; set; } // Charset from UI checkboxes
         public bool EnableUtf8 { get; set; } = false;
+        public bool IsHybridMode { get; set; } = false; // CPU+GPU mode: CPU does only digits
 
         // Function to check if password was already tested (skip duplicates)
         public Func<string, bool> IsPasswordTestedFunc { get; set; }
@@ -484,6 +487,7 @@ namespace ZipCrackerUI
         /// <summary>
         /// Progressive brute force - ไล่จาก charset ง่ายไปยาก สำหรับแต่ละความยาว
         /// เช่น ถ้าเลือก Alphanumeric จะไล่: digits -> lowercase -> uppercase -> mixed -> alphanumeric
+        /// ถ้า IsHybridMode = true (CPU+GPU), CPU จะทำเฉพาะ Digits เท่านั้น
         /// </summary>
         private async Task ProgressiveBruteForceAsync(string fullCharset)
         {
@@ -499,24 +503,40 @@ namespace ZipCrackerUI
             bool hasSpecial = fullCharset.Any(c => SPECIAL.Contains(c));
 
             Log("");
-            Log("Progressive brute force strategy:");
-            Log("For each length, try simpler charsets first");
+            if (IsHybridMode)
+            {
+                Log("=== HYBRID MODE: CPU handles DIGITS ONLY ===");
+                Log("GPU will handle all other patterns (lowercase, uppercase, mixed, etc.)");
+            }
+            else
+            {
+                Log("Progressive brute force strategy:");
+                Log("For each length, try simpler charsets first");
+            }
 
             for (int len = MinLength; len <= MaxLength && !_passwordFound && !_cts.Token.IsCancellationRequested; len++)
             {
                 Log($"");
                 Log($"=== Length {len} ===");
 
-                // 1. Digits only (if included)
+                // 1. Digits only (if included) - CPU ALWAYS does this in Hybrid mode
                 if (hasDigits && !_passwordFound && !_cts.Token.IsCancellationRequested)
                 {
                     string charset = new string(fullCharset.Where(c => DIGITS.Contains(c)).ToArray());
                     if (charset.Length > 0)
                     {
                         long combos = (long)Math.Pow(charset.Length, len);
-                        Log($"[{len}.1] Digits ({charset.Length} chars): {combos:N0}");
+                        string patternName = $"Digits {len}-char";
+                        SetCurrentPattern(patternName);
+                        Log($"[CPU] {patternName}: {combos:N0} combinations");
                         await BruteForceLengthAsync(charset, len, combos);
                     }
+                }
+
+                // In Hybrid mode, CPU ONLY does digits - skip other patterns (GPU handles them)
+                if (IsHybridMode)
+                {
+                    continue; // Skip to next length, GPU will handle other patterns
                 }
 
                 // 2. Lowercase only (if included)
@@ -526,7 +546,9 @@ namespace ZipCrackerUI
                     if (charset.Length > 0)
                     {
                         long combos = (long)Math.Pow(charset.Length, len);
-                        Log($"[{len}.2] Lowercase ({charset.Length} chars): {combos:N0}");
+                        string patternName = $"Lowercase {len}-char";
+                        SetCurrentPattern(patternName);
+                        Log($"[CPU] {patternName}: {combos:N0} combinations");
                         await BruteForceLengthAsync(charset, len, combos);
                     }
                 }
@@ -538,7 +560,9 @@ namespace ZipCrackerUI
                     if (charset.Length > 0)
                     {
                         long combos = (long)Math.Pow(charset.Length, len);
-                        Log($"[{len}.3] Uppercase ({charset.Length} chars): {combos:N0}");
+                        string patternName = $"Uppercase {len}-char";
+                        SetCurrentPattern(patternName);
+                        Log($"[CPU] {patternName}: {combos:N0} combinations");
                         await BruteForceLengthAsync(charset, len, combos);
                     }
                 }
@@ -550,7 +574,9 @@ namespace ZipCrackerUI
                     if (charset.Length > 0)
                     {
                         long combos = (long)Math.Pow(charset.Length, len);
-                        Log($"[{len}.4] Mixed case ({charset.Length} chars): {combos:N0}");
+                        string patternName = $"Mixed {len}-char";
+                        SetCurrentPattern(patternName);
+                        Log($"[CPU] {patternName}: {combos:N0} combinations");
                         await BruteForceLengthAsync(charset, len, combos);
                     }
                 }
@@ -562,7 +588,9 @@ namespace ZipCrackerUI
                     if (charset.Length > 0)
                     {
                         long combos = (long)Math.Pow(charset.Length, len);
-                        Log($"[{len}.5] Alphanumeric ({charset.Length} chars): {combos:N0}");
+                        string patternName = $"Alphanumeric {len}-char";
+                        SetCurrentPattern(patternName);
+                        Log($"[CPU] {patternName}: {combos:N0} combinations");
                         await BruteForceLengthAsync(charset, len, combos);
                     }
                 }
@@ -571,10 +599,23 @@ namespace ZipCrackerUI
                 if (hasSpecial && !_passwordFound && !_cts.Token.IsCancellationRequested)
                 {
                     long combos = (long)Math.Pow(fullCharset.Length, len);
-                    Log($"[{len}.6] Full charset ({fullCharset.Length} chars): {combos:N0}");
+                    string patternName = $"Full {len}-char";
+                    SetCurrentPattern(patternName);
+                    Log($"[CPU] {patternName}: {combos:N0} combinations");
                     await BruteForceLengthAsync(fullCharset, len, combos);
                 }
             }
+
+            SetCurrentPattern("Completed");
+        }
+
+        /// <summary>
+        /// Set current pattern and notify UI
+        /// </summary>
+        private void SetCurrentPattern(string pattern)
+        {
+            CurrentPattern = pattern;
+            OnPatternChanged?.Invoke(pattern);
         }
 
         private async Task TestGamePatternsAsync()

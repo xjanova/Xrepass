@@ -384,6 +384,19 @@ namespace ZipCrackerUI
                 });
             };
 
+            // Handle pattern changes from engine
+            _engine.OnPatternChanged += (pattern) =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    lblCpuPattern.Text = pattern;
+                    if (_workManager != null)
+                    {
+                        _workManager.CpuStats.CurrentPattern = pattern;
+                    }
+                });
+            };
+
             // Set the skip check function
             _engine.IsPasswordTestedFunc = IsPasswordTested;
         }
@@ -599,7 +612,7 @@ namespace ZipCrackerUI
                         if (cpuRemaining < 0) cpuRemaining = 0;
                         string cpuEta = CalculateEta(cpuRemaining, _cpuSpeed);
 
-                        UpdateCpuProgress(cpuStats.CurrentPhase > 0 ? cpuStats.CurrentPhase : 1,
+                        UpdateCpuProgress(cpuStats.CurrentPattern ?? "Digits",
                                         cpuTestedCount, chunkProgress,
                                         cpuTestedCount, (long)_workManager.TotalPasswords, action, cpuEta);
                     }
@@ -644,7 +657,7 @@ namespace ZipCrackerUI
                     if (gpuRemaining < 0) gpuRemaining = 0;
                     string gpuEta = CalculateEta(gpuRemaining, _gpuSpeed);
 
-                    UpdateGpuProgress(gpuStats.CurrentPhase > 0 ? gpuStats.CurrentPhase : 1,
+                    UpdateGpuProgress(gpuStats.CurrentPattern ?? "Mixed",
                                      _gpuTestedCount, gpuProgress,
                                      _gpuTestedCount, (long)_workManager.TotalPasswords, gpuAction, gpuEta);
                 }
@@ -1049,15 +1062,20 @@ namespace ZipCrackerUI
             if (useCpu && useGpu)
             {
                 Log("=== HYBRID ATTACK (CPU + GPU) ===");
+                Log("CPU: Digits only | GPU: All other patterns");
                 GpuLog("=== HYBRID ATTACK (CPU + GPU) ===");
+                GpuLog("GPU: Lowercase, Uppercase, Mixed, Alphanumeric, Special");
+                _engine.IsHybridMode = true; // CPU does only digits
             }
             else if (useGpu)
             {
                 GpuLog("=== GPU ATTACK MODE ===");
+                _engine.IsHybridMode = false;
             }
             else
             {
                 Log("=== CPU ATTACK MODE ===");
+                _engine.IsHybridMode = false;
             }
             Log("");
 
@@ -1788,15 +1806,66 @@ namespace ZipCrackerUI
             string attackArgs = "";
 
             // Build hashcat custom charset based on selected options
-            // Order: digits first (most common for simple passwords), then letters
+            // In HYBRID mode (CPU+GPU), GPU skips digits (CPU handles them)
             var hashcatCharset = new StringBuilder();
-            if (hasNumbers) hashcatCharset.Append("?d");
-            if (hasLower) hashcatCharset.Append("?l");
-            if (hasUpper) hashcatCharset.Append("?u");
-            if (hasSpecial) hashcatCharset.Append("?s");
+            bool isHybrid = _engine.IsHybridMode;
+
+            if (isHybrid)
+            {
+                // Hybrid mode: GPU does everything EXCEPT digits
+                GpuLog("=== HYBRID MODE: GPU skipping digits (CPU handles them) ===");
+                if (hasLower) hashcatCharset.Append("?l");
+                if (hasUpper) hashcatCharset.Append("?u");
+                if (hasSpecial) hashcatCharset.Append("?s");
+
+                // Update GPU pattern display
+                Dispatcher.Invoke(() =>
+                {
+                    string patternDesc = "";
+                    if (hasLower) patternDesc += "a-z ";
+                    if (hasUpper) patternDesc += "A-Z ";
+                    if (hasSpecial) patternDesc += "!@#$ ";
+                    lblGpuPattern.Text = patternDesc.Trim();
+                    if (_workManager != null)
+                        _workManager.GpuStats.CurrentPattern = patternDesc.Trim();
+                });
+            }
+            else
+            {
+                // Solo GPU mode: test everything
+                if (hasNumbers) hashcatCharset.Append("?d");
+                if (hasLower) hashcatCharset.Append("?l");
+                if (hasUpper) hashcatCharset.Append("?u");
+                if (hasSpecial) hashcatCharset.Append("?s");
+
+                // Update GPU pattern display
+                Dispatcher.Invoke(() =>
+                {
+                    string patternDesc = "";
+                    if (hasNumbers) patternDesc += "0-9 ";
+                    if (hasLower) patternDesc += "a-z ";
+                    if (hasUpper) patternDesc += "A-Z ";
+                    if (hasSpecial) patternDesc += "!@#$ ";
+                    lblGpuPattern.Text = patternDesc.Trim();
+                    if (_workManager != null)
+                        _workManager.GpuStats.CurrentPattern = patternDesc.Trim();
+                });
+            }
 
             if (hashcatCharset.Length == 0)
             {
+                if (isHybrid && hasNumbers && !hasLower && !hasUpper && !hasSpecial)
+                {
+                    // Only digits selected in hybrid mode - GPU has nothing to do
+                    GpuLog("In Hybrid mode with only digits selected - CPU handles all work.");
+                    GpuLog("GPU is idle.");
+                    Dispatcher.Invoke(() =>
+                    {
+                        lblGpuPattern.Text = "Idle (CPU only)";
+                        lblGpuStatus.Text = "Idle";
+                    });
+                    return;
+                }
                 GpuLog("ERROR: No charset selected!");
                 return;
             }
@@ -3176,11 +3245,11 @@ namespace ZipCrackerUI
         /// <summary>
         /// อัปเดต CPU progress section
         /// </summary>
-        private void UpdateCpuProgress(int phase, long checkedCount, double chunkProgress, long chunkCurrent, long chunkTotal, string action, string eta = "--")
+        private void UpdateCpuProgress(string pattern, long checkedCount, double chunkProgress, long chunkCurrent, long chunkTotal, string action, string eta = "--")
         {
             Dispatcher.InvokeAsync(() =>
             {
-                lblCpuPhase.Text = phase.ToString();
+                lblCpuPattern.Text = pattern;
                 lblCpuChecked.Text = FormatNumber(checkedCount);
                 lblCpuChunkProgress.Text = $"{chunkProgress:F1}%";
                 progressBarCpuChunk.Value = chunkProgress;
@@ -3193,11 +3262,11 @@ namespace ZipCrackerUI
         /// <summary>
         /// อัปเดต GPU progress section
         /// </summary>
-        private void UpdateGpuProgress(int phase, long checkedCount, double chunkProgress, long chunkCurrent, long chunkTotal, string action, string eta = "--")
+        private void UpdateGpuProgress(string pattern, long checkedCount, double chunkProgress, long chunkCurrent, long chunkTotal, string action, string eta = "--")
         {
             Dispatcher.InvokeAsync(() =>
             {
-                lblGpuPhase.Text = phase.ToString();
+                lblGpuPattern.Text = pattern;
                 lblGpuChecked.Text = FormatNumber(checkedCount);
                 lblGpuChunkProgress.Text = $"{chunkProgress:F1}%";
                 progressBarGpuChunk.Value = chunkProgress;
@@ -3240,7 +3309,7 @@ namespace ZipCrackerUI
             Dispatcher.InvokeAsync(() =>
             {
                 // CPU
-                lblCpuPhase.Text = "0";
+                lblCpuPattern.Text = "Idle";
                 lblCpuChecked.Text = "0";
                 lblCpuChunkProgress.Text = "0%";
                 progressBarCpuChunk.Value = 0;
@@ -3249,7 +3318,7 @@ namespace ZipCrackerUI
                 lblCpuEta.Text = "--";
 
                 // GPU
-                lblGpuPhase.Text = "0";
+                lblGpuPattern.Text = "Idle";
                 lblGpuChecked.Text = "0";
                 lblGpuChunkProgress.Text = "0%";
                 progressBarGpuChunk.Value = 0;
@@ -3282,14 +3351,14 @@ namespace ZipCrackerUI
             if (foundBy == "CPU")
             {
                 Log(message);
-                UpdateCpuProgress(_workManager?.CpuStats.CurrentPhase ?? 0,
+                UpdateCpuProgress("✓ FOUND",
                                  _workManager?.CpuStats.TotalTested ?? 0,
                                  100, 1, 1, "PASSWORD FOUND!");
             }
             else
             {
                 GpuLog(message);
-                UpdateGpuProgress(_workManager?.GpuStats.CurrentPhase ?? 0,
+                UpdateGpuProgress("✓ FOUND",
                                  _workManager?.GpuStats.TotalTested ?? 0,
                                  100, 1, 1, "PASSWORD FOUND!");
             }
