@@ -10,15 +10,15 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
 
     <!-- Version Info -->
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
 
     <!-- Product Info -->
     <Product>X-Repass</Product>
     <Company>XMan Studio</Company>
     <Authors>XMan Studio</Authors>
-    <Copyright>Copyright © 2024 XMan Studio. All rights reserved.</Copyright>
+    <Copyright>Copyright © 2025 XMan Studio. All rights reserved.</Copyright>
     <Description>Archive Password Recovery Tool - Professional Edition</Description>
   </PropertyGroup>
 

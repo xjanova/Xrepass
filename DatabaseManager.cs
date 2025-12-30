@@ -224,6 +224,27 @@ namespace ZipCrackerUI
             cmd.ExecuteNonQuery();
         }
 
+        public void DeleteSession(int sessionId)
+        {
+            // Delete related tested passwords first
+            var cmd = _connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM TestedPasswords WHERE SessionId = @id";
+            cmd.Parameters.AddWithValue("@id", sessionId);
+            cmd.ExecuteNonQuery();
+
+            // Delete password ranges
+            cmd = _connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM PasswordRanges WHERE SessionId = @id";
+            cmd.Parameters.AddWithValue("@id", sessionId);
+            cmd.ExecuteNonQuery();
+
+            // Delete the session
+            cmd = _connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM CrackSessions WHERE Id = @id";
+            cmd.Parameters.AddWithValue("@id", sessionId);
+            cmd.ExecuteNonQuery();
+        }
+
         public List<CrackSession> GetRecentSessions(int limit = 20)
         {
             var sessions = new List<CrackSession>();

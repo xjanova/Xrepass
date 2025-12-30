@@ -1,6 +1,7 @@
 <Application x:Class="ZipCrackerUI.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:ZipCrackerUI"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
         <!-- X-Repass RGB Neon Theme -->
@@ -396,7 +397,7 @@
             </Setter>
         </Style>
 
-        <!-- Log TextBox Style - Prevents white background on scroll -->
+        <!-- Log TextBox Style - Prevents white background on scroll, hidden scrollbar -->
         <Style x:Key="LogTextBox" TargetType="TextBox">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="#00ff88"/>
@@ -412,11 +413,14 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
                         <ScrollViewer x:Name="PART_ContentHost" Background="Transparent"
-                                      VerticalScrollBarVisibility="Auto" Padding="{TemplateBinding Padding}"/>
+                                      VerticalScrollBarVisibility="Hidden" Padding="{TemplateBinding Padding}"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Converters -->
+        <local:TimeSpanConverter x:Key="TimeSpanConverter"/>
 
     </Application.Resources>
 </Application>

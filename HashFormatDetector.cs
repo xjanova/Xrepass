@@ -18,10 +18,16 @@ namespace ZipCrackerUI
         private static string _rar2johnPath;
         private static string _pythonPath;
 
+        // Last error messages for debugging
+        private static string _last7z2johnError;
+        private static string _lastRar2johnError;
+
         // Scan settings - ลดเวลาและขนาดเพื่อไม่ให้ UI ค้าง
-        private const int DEFAULT_SCAN_TIMEOUT_MS = 5000; // 5 วินาที (ลดจาก 30 วินาที)
+        private const int DEFAULT_SCAN_TIMEOUT_MS = 8000; // 8 วินาที (เพิ่มจาก 5 วินาที)
         private const int MAX_SCAN_SIZE_MB = 50; // ไฟล์ใหญ่กว่านี้สแกนแค่ส่วนแรก
         private const int DEEP_SCAN_CHUNK_SIZE = 256 * 1024; // 256KB per chunk (เช็ค cancellation บ่อยขึ้น)
+        private const int DEFAULT_RETRY_COUNT = 3; // จำนวนครั้งที่ลอง retry
+        private const int RETRY_DELAY_MS = 500; // หน่วงระหว่าง retry
 
         /// <summary>
         /// Set path to 7z2john tool
@@ -129,6 +135,98 @@ namespace ZipCrackerUI
         }
 
         /// <summary>
+        /// ตรวจสอบและสร้าง hash พร้อม retry อัตโนมัติ (แนะนำใช้แทน ExtractHashAsync)
+        /// ลองหลายครั้งจนกว่าจะสำเร็จ หรือหมดจำนวนครั้ง retry
+        /// </summary>
+        /// <param name="filePath">Path ของไฟล์</param>
+        /// <param name="maxRetries">จำนวนครั้งที่ลอง (default: 3)</param>
+        /// <param name="timeoutMs">Timeout ต่อครั้ง (default: 8s)</param>
+        /// <param name="onRetry">Callback เมื่อ retry (optional)</param>
+        /// <returns>HashInfo ที่ valid หรือ error message ของครั้งสุดท้าย</returns>
+        public static async System.Threading.Tasks.Task<HashInfo> ExtractHashWithRetryAsync(
+            string filePath,
+            int maxRetries = DEFAULT_RETRY_COUNT,
+            int timeoutMs = DEFAULT_SCAN_TIMEOUT_MS,
+            Action<int, int, string> onRetry = null)
+        {
+            if (!File.Exists(filePath))
+            {
+                return new HashInfo
+                {
+                    IsValid = false,
+                    ErrorMessage = "File not found"
+                };
+            }
+
+            HashInfo lastResult = null;
+            string lastError = null;
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    // เพิ่ม timeout ในแต่ละ retry (attempt 1: 8s, attempt 2: 12s, attempt 3: 16s)
+                    int currentTimeout = timeoutMs + ((attempt - 1) * 4000);
+
+                    var cancellation = new System.Threading.CancellationTokenSource(currentTimeout);
+
+                    lastResult = await System.Threading.Tasks.Task.Run(
+                        () => ExtractHashInternal(filePath, cancellation.Token),
+                        cancellation.Token);
+
+                    // ถ้าสำเร็จ return ทันที
+                    if (lastResult.IsValid)
+                    {
+                        return lastResult;
+                    }
+
+                    // ถ้าไม่สำเร็จ เก็บ error ไว้
+                    lastError = lastResult.ErrorMessage;
+
+                    // ถ้ายังไม่ใช่ attempt สุดท้าย และ error เป็น timeout ให้ retry
+                    if (attempt < maxRetries)
+                    {
+                        onRetry?.Invoke(attempt, maxRetries, lastError);
+                        await System.Threading.Tasks.Task.Delay(RETRY_DELAY_MS);
+                    }
+                }
+                catch (System.Threading.Tasks.TaskCanceledException)
+                {
+                    lastError = $"Detection timeout ({timeoutMs / 1000}s) - Attempt {attempt}/{maxRetries}";
+
+                    if (attempt < maxRetries)
+                    {
+                        onRetry?.Invoke(attempt, maxRetries, lastError);
+                        await System.Threading.Tasks.Task.Delay(RETRY_DELAY_MS);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastError = $"Error: {ex.Message}";
+
+                    // ถ้าเป็น error ที่ไม่ควร retry (file access, etc.) ให้หยุดเลย
+                    if (ex is UnauthorizedAccessException || ex is FileNotFoundException)
+                    {
+                        break;
+                    }
+
+                    if (attempt < maxRetries)
+                    {
+                        onRetry?.Invoke(attempt, maxRetries, lastError);
+                        await System.Threading.Tasks.Task.Delay(RETRY_DELAY_MS);
+                    }
+                }
+            }
+
+            // Return last result หรือ error
+            return lastResult ?? new HashInfo
+            {
+                IsValid = false,
+                ErrorMessage = $"Failed after {maxRetries} attempts: {lastError}"
+            };
+        }
+
+        /// <summary>
         /// ตรวจสอบและสร้าง hash ตามประเภทของไฟล์ (Sync version - ใช้เฉพาะกรณีจำเป็น)
         /// รองรับ: ZIP (รวม SFX .exe), RAR, 7z, TAR, GZ, BZ2, XZ
         /// พร้อม Timeout และ Deep Scan
@@ -228,9 +326,9 @@ namespace ZipCrackerUI
                     ErrorMessage = "TAR archive detected (no password protection)"
                 };
 
-            // MZ signature (EXE/DLL = "MZ")
+            // MZ signature (EXE/DLL = "MZ") - could be ZIP or RAR SFX
             if ((sig & 0xFFFF) == 0x5A4D)
-                return ExtractZipFromSFX(br, filePath);
+                return ExtractArchiveFromSFX(br, filePath);
 
             return null; // Not found - need deep scan
         }
@@ -318,6 +416,72 @@ namespace ZipCrackerUI
         }
 
         /// <summary>
+        /// Find file entry in Central Directory to get correct CRC32/sizes
+        /// (needed when local header has Data Descriptor flag set)
+        /// </summary>
+        private static (uint crc32, uint compSize, uint uncompSize)? FindCentralDirectoryEntry(BinaryReader br, string targetFileName)
+        {
+            long savedPos = br.BaseStream.Position;
+            try
+            {
+                // Find End of Central Directory (EOCD) - search backwards from end
+                br.BaseStream.Seek(-22, SeekOrigin.End);
+
+                // Search for EOCD signature (may have comment before it)
+                for (int i = 0; i < 65536 && br.BaseStream.Position >= 4; i++)
+                {
+                    if (br.ReadUInt32() == 0x06054b50) // EOCD signature
+                    {
+                        // Found EOCD, read central directory offset
+                        br.BaseStream.Position += 12; // Skip to central dir offset
+                        uint cdOffset = br.ReadUInt32();
+
+                        // Go to Central Directory
+                        br.BaseStream.Position = cdOffset;
+
+                        // Search for matching entry
+                        while (br.BaseStream.Position < br.BaseStream.Length - 46)
+                        {
+                            uint sig = br.ReadUInt32();
+                            if (sig != 0x02014b50) break; // Central Directory signature
+
+                            br.BaseStream.Position += 8; // Skip to CRC32
+                            uint crc32 = br.ReadUInt32();
+                            uint compSize = br.ReadUInt32();
+                            uint uncompSize = br.ReadUInt32();
+                            ushort fnLen = br.ReadUInt16();
+                            ushort extraLen = br.ReadUInt16();
+                            ushort commentLen = br.ReadUInt16();
+                            br.BaseStream.Position += 8; // Skip disk number, attributes, offset
+
+                            string fn = Encoding.UTF8.GetString(br.ReadBytes(fnLen));
+
+                            if (fn == targetFileName)
+                            {
+                                return (crc32, compSize, uncompSize);
+                            }
+
+                            // Skip extra field and comment
+                            br.BaseStream.Position += extraLen + commentLen;
+                        }
+                        break;
+                    }
+                    br.BaseStream.Position -= 5; // Move back to try next position
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                br.BaseStream.Position = savedPos;
+            }
+        }
+
+        /// <summary>
         /// สร้าง hash สำหรับ ZIP (ตรวจสอบ PKZIP, WinZip AES)
         /// </summary>
         private static HashInfo ExtractZipHash(BinaryReader br, string filePath)
@@ -345,6 +509,22 @@ namespace ZipCrackerUI
                 var extraLen = br.ReadUInt16();
 
                 var fileName = Encoding.UTF8.GetString(br.ReadBytes(fnLen));
+
+                // Check for Data Descriptor flag (bit 3)
+                // When set, CRC32/compSize/uncompSize in local header are 0
+                // and actual values are in Data Descriptor after the file data
+                bool hasDataDescriptor = (flags & 0x08) != 0;
+                if (hasDataDescriptor && (crc32 == 0 || compSize == 0))
+                {
+                    // Need to read from Central Directory to get correct values
+                    var centralDirInfo = FindCentralDirectoryEntry(br, fileName);
+                    if (centralDirInfo != null)
+                    {
+                        crc32 = centralDirInfo.Value.crc32;
+                        compSize = centralDirInfo.Value.compSize;
+                        uncompSize = centralDirInfo.Value.uncompSize;
+                    }
+                }
 
                 // ตรวจสอบ extra field สำหรับ WinZip AES
                 bool isWinZipAES = false;
@@ -389,7 +569,18 @@ namespace ZipCrackerUI
                     else
                     {
                         // Traditional PKZIP (ZipCrypto)
-                        return ExtractPKZIPHash(br, fileName, compression, crc32, modTime, dataOffset, (int)compSize);
+                        // Validate that we have proper CRC32 - critical for hash strength!
+                        if (crc32 == 0)
+                        {
+                            return new HashInfo
+                            {
+                                IsValid = false,
+                                ErrorMessage = $"Cannot extract hash: CRC32 is zero (file: {fileName}). " +
+                                              "This ZIP may use Data Descriptor format not fully supported, or the file is corrupted."
+                            };
+                        }
+
+                        return ExtractPKZIPHash(br, fileName, compression, crc32, modTime, dataOffset, (int)compSize, uncompSize);
                     }
                 }
 
@@ -406,43 +597,104 @@ namespace ZipCrackerUI
 
         /// <summary>
         /// สร้าง hash สำหรับ PKZIP Traditional (ZipCrypto)
+        /// Hashcat format: $pkzip2$cnt*type*mode*0*compSize*uncompSize*crc32*dataOffset*encHeaderSize*compMethod*dataLen*crcCheck*extra*DATA*$/pkzip2$
+        /// Example (mode 17200 compressed): $pkzip2$1*1*2*0*e3*1c5*eda7a8de*0*28*8*e3*eda7*5096*[DATA]*$/pkzip2$
+        /// Example (mode 17210 uncompressed): $pkzip2$1*1*2*0*1d1*1c5*eda7a8de*0*28*0*1d1*eda7*5096*[DATA]*$/pkzip2$
         /// </summary>
         private static HashInfo ExtractPKZIPHash(BinaryReader br, string fileName, int compression,
-            uint crc32, ushort modTime, long dataOffset, int compSize)
+            uint crc32, ushort modTime, long dataOffset, int compSize, uint uncompSize)
         {
-            // อ่าน encrypted header (12 bytes)
-            var encData = br.ReadBytes(Math.Min(12, compSize));
+            // Validate CRC32 - without proper CRC, hash is useless (high collision rate)
+            if (crc32 == 0)
+            {
+                return new HashInfo
+                {
+                    IsValid = false,
+                    ErrorMessage = $"CRC32 is zero - cannot create reliable hash for '{fileName}'"
+                };
+            }
 
-            byte crcCheck = (byte)((crc32 >> 24) & 0xFF);
-            byte timeCheck = (byte)((modTime >> 8) & 0xFF);
+            // Hashcat PKZIP mode 17200/17210 has a 320KB data limit
+            // Also, uncompressed size should be <= 32KB for reliable decompression
+            const int MAX_PKZIP_DATA = 320 * 1024;
+            const int MAX_UNCOMP_SIZE = 32 * 1024; // 32KB uncompressed limit for reliable cracking
 
-            // สร้าง hash ในรูปแบบ $pkzip2$
+            if (compSize > MAX_PKZIP_DATA)
+            {
+                return new HashInfo
+                {
+                    IsValid = false,
+                    ErrorMessage = $"File too large for GPU cracking ({compSize / 1024}KB > 320KB limit). Use CPU mode instead."
+                };
+            }
+
+            // Warning: large uncompressed files may have issues
+            bool largeUncompressed = uncompSize > MAX_UNCOMP_SIZE;
+
+            // อ่าน encrypted data ทั้งหมด - must read exactly compSize for hash to be valid
+            var encData = br.ReadBytes(compSize);
+
+            if (encData.Length < 12)
+            {
+                return new HashInfo
+                {
+                    IsValid = false,
+                    ErrorMessage = "Encrypted data too short for PKZIP"
+                };
+            }
+
+            // WARNING: Very small encrypted data causes high collision rate (false positives)
+            // Mode 17210 (Store/Uncompressed) is especially vulnerable
+            // Minimum recommended: 64 bytes for deflate, 128 bytes for store
+            bool weakHash = encData.Length < 64 || (compression == 0 && encData.Length < 128);
+            string weakHashWarning = null;
+            if (weakHash)
+            {
+                weakHashWarning = $"⚠️ WARNING: Small encrypted data ({encData.Length} bytes) - HIGH FALSE POSITIVE RATE! " +
+                                  "GPU may find many 'passwords' that don't work. Consider CPU mode.";
+            }
+
+            if (encData.Length != compSize)
+            {
+                return new HashInfo
+                {
+                    IsValid = false,
+                    ErrorMessage = $"Could not read full encrypted data ({encData.Length}/{compSize} bytes)"
+                };
+            }
+
+            // เลือก Hashcat mode ตาม compression type
+            // 17200 = Deflate (compressed), 17210 = Store (uncompressed)
+            int mode = compression == 0 ? 17210 : 17200;
+
+            // CRC check bytes (2 bytes จาก high bytes ของ CRC32)
+            ushort crcCheck = (ushort)((crc32 >> 16) & 0xFFFF);
+
+            // สร้าง hash ในรูปแบบที่ hashcat mode 17200/17210 ต้องการ
+            // Based on hashcat example: $pkzip2$1*1*2*0*e3*1c5*eda7a8de*0*28*8*e3*eda7*5096*DATA*$/pkzip2$
             var sb = new StringBuilder();
             sb.Append("$pkzip2$");
-            sb.Append("*");
-            sb.Append($"{compression}*");  // Compression type
-            sb.Append("0*");  // Checksum type (0 = CRC)
-            sb.Append($"{crcCheck:x2}*");  // CRC check byte
-            sb.Append($"{timeCheck:x2}*");  // Time check byte
+            sb.Append("1*");                           // file count
+            sb.Append("1*");                           // type (always 1)
+            sb.Append("2*");                           // mode (2 for single file)
+            sb.Append("0*");                           // checksum type (0 = CRC)
+            sb.Append($"{compSize:x}*");               // compressed size (hex)
+            sb.Append($"{uncompSize:x}*");             // uncompressed size (hex)
+            sb.Append($"{crc32:x8}*");                 // CRC32 (8 hex chars)
+            sb.Append("0*");                           // data offset
+            sb.Append("28*");                          // encryption header size (40 = 0x28)
+            sb.Append($"{compression:x}*");            // compression method (0=store, 8=deflate)
+            sb.Append($"{encData.Length:x}*");         // data length (hex)
+            sb.Append($"{crcCheck:x4}*");              // CRC check bytes (4 hex chars)
+            sb.Append($"{(modTime & 0xFFFF):x4}*");    // extra (modification time as hex)
 
-            // Encrypted header
+            // Encrypted data (hex)
             foreach (var b in encData)
                 sb.Append(b.ToString("x2"));
 
             sb.Append("*$/pkzip2$");
 
-            // เลือก Hashcat mode ตาม compression type
-            int mode = compression switch
-            {
-                0 => 17210,   // Store
-                8 => 17200,   // Deflate
-                9 => 17220,   // Deflate64
-                14 => 17225,  // LZMA
-                2 or 3 or 4 or 5 => 17230,  // Reduce
-                _ => 17200    // Default
-            };
-
-            return new HashInfo
+            var result = new HashInfo
             {
                 Type = HashType.PKZIP_Traditional,
                 HashcatMode = mode,
@@ -451,6 +703,18 @@ namespace ZipCrackerUI
                 CompressionType = compression,
                 IsValid = true
             };
+
+            // Add warnings
+            if (weakHashWarning != null)
+            {
+                result.ErrorMessage = weakHashWarning;
+            }
+            else if (largeUncompressed)
+            {
+                result.ErrorMessage = $"Warning: Large uncompressed size ({uncompSize / 1024}KB) may cause false negatives";
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -704,13 +968,13 @@ namespace ZipCrackerUI
             }
 
             // Could not extract - suggest using rar2john
-            string errorMsg = "RAR5 detected - rar2john.py tool required for hash extraction";
+            string errorMsg = "RAR5 detected - rar2john.exe tool required for hash extraction";
 
             if (!string.IsNullOrEmpty(_rar2johnPath) && File.Exists(_rar2johnPath))
             {
-                // Tool exists but failed to run - likely missing Python
-                errorMsg = "RAR5 detected - Python interpreter required to run rar2john.py\n" +
-                           "Download Python Portable from Settings.";
+                // Tool exists but failed to run - check the error
+                errorMsg = "RAR5 detected - rar2john.exe failed to extract hash.\n" +
+                           "The archive may be corrupted or use an unsupported format.";
             }
 
             return new HashInfo
@@ -828,13 +1092,13 @@ namespace ZipCrackerUI
                 // Fall through
             }
 
-            string errorMsg = "RAR3 detected - rar2john.py tool required for hash extraction";
+            string errorMsg = "RAR3 detected - rar2john.exe tool required for hash extraction";
 
             if (!string.IsNullOrEmpty(_rar2johnPath) && File.Exists(_rar2johnPath))
             {
-                // Tool exists but failed to run - likely missing Python
-                errorMsg = "RAR3 detected - Python interpreter required to run rar2john.py\n" +
-                           "Download Python Portable from Settings.";
+                // Tool exists but failed to run - check the error
+                errorMsg = "RAR3 detected - rar2john.exe failed to extract hash.\n" +
+                           "The archive may be corrupted or use an unsupported format.";
             }
 
             return new HashInfo
@@ -914,9 +1178,22 @@ namespace ZipCrackerUI
 
                 if (!string.IsNullOrEmpty(_7z2johnPath) && File.Exists(_7z2johnPath))
                 {
-                    // Tool exists but failed to run - likely missing Perl
-                    errorMsg = "7-Zip detected - Perl interpreter required to run 7z2john.pl\n" +
-                               "Install Strawberry Perl from: https://strawberryperl.com/";
+                    // Tool exists but failed to run - check Perl
+                    if (!IsPerlAvailable())
+                    {
+                        errorMsg = "7-Zip detected - Perl interpreter required to run 7z2john.pl\n" +
+                                   "Install Strawberry Perl from: https://strawberryperl.com/";
+                    }
+                    else if (!string.IsNullOrEmpty(_last7z2johnError))
+                    {
+                        // Show actual error from 7z2john
+                        errorMsg = $"7-Zip detected - 7z2john.pl error:\n{_last7z2johnError}";
+                    }
+                    else
+                    {
+                        errorMsg = "7-Zip detected - 7z2john.pl failed to extract hash.\n" +
+                                   "The archive may not be encrypted or uses an unsupported format.";
+                    }
                 }
 
                 return new HashInfo
@@ -1000,14 +1277,26 @@ namespace ZipCrackerUI
                     RedirectStandardError = true
                 };
 
+                // Set Strawberry Perl environment if needed (for liblzma DLL)
+                if (perlExe.Contains("Strawberry"))
+                {
+                    string strawberryRoot = @"C:\Strawberry";
+                    string currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+                    string newPath = $@"{strawberryRoot}\c\bin;{strawberryRoot}\perl\bin;{strawberryRoot}\perl\site\bin;{currentPath}";
+                    psi.Environment["PATH"] = newPath;
+                    psi.Environment["PERL5LIB"] = $@"{strawberryRoot}\perl\lib;{strawberryRoot}\perl\site\lib;{strawberryRoot}\perl\vendor\lib";
+                }
+
                 using var process = System.Diagnostics.Process.Start(psi);
                 if (process == null)
                     return null;
 
                 string output = process.StandardOutput.ReadToEnd();
+                string error = process.StandardError.ReadToEnd();
                 process.WaitForExit(30000);
 
-                if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+                // Check for output even if exit code is not 0 (some scripts return non-zero but still output hash)
+                if (!string.IsNullOrWhiteSpace(output))
                 {
                     // Output format: filename:$7z$...
                     // Extract just the hash part
@@ -1017,10 +1306,17 @@ namespace ZipCrackerUI
                         return output.Substring(colonIndex + 1).Trim();
                     }
                 }
+
+                // Store error for later use
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    _last7z2johnError = error.Trim();
+                }
             }
-            catch
+            catch (Exception ex)
             {
                 // Failed to run perl
+                _last7z2johnError = ex.Message;
                 return null;
             }
 
@@ -1041,13 +1337,12 @@ namespace ZipCrackerUI
             }
             else
             {
-                // Try common locations for rar2john
+                // Try common locations for rar2john.exe (native executable from John the Ripper)
                 string[] possiblePaths = {
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "X-Repass", "tools", "rar2john.py"),
-                    @"C:\hashcat\rar2john.py",
-                    @"C:\John\run\rar2john.py",
-                    @"C:\tools\rar2john.py",
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "rar2john.py"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "X-Repass", "tools", "john", "run", "rar2john.exe"),
+                    @"C:\John\run\rar2john.exe",
+                    @"C:\tools\john\run\rar2john.exe",
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "rar2john.exe"),
                 };
 
                 foreach (var path in possiblePaths)
@@ -1063,21 +1358,13 @@ namespace ZipCrackerUI
             if (toolRar2john == null)
                 return null;
 
-            // Check if Python is available
-            if (!IsPythonAvailable())
-                return null;
-
             try
             {
-                // Use configured Python path if available, otherwise use "python" (from PATH)
-                string pythonExe = !string.IsNullOrEmpty(_pythonPath) && File.Exists(_pythonPath)
-                    ? _pythonPath
-                    : "python";
-
+                // rar2john.exe is a native executable, run it directly
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = pythonExe,
-                    Arguments = $"\"{toolRar2john}\" \"{filePath}\"",
+                    FileName = toolRar2john,
+                    Arguments = $"\"{filePath}\"",
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardOutput = true,
@@ -1091,7 +1378,7 @@ namespace ZipCrackerUI
                 string output = process.StandardOutput.ReadToEnd();
                 process.WaitForExit(30000);
 
-                if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+                if (!string.IsNullOrWhiteSpace(output))
                 {
                     // Output format: filename:$rar5$... or filename:$RAR3$...
                     // Extract just the hash part
@@ -1104,7 +1391,7 @@ namespace ZipCrackerUI
             }
             catch
             {
-                // Failed to run python
+                // Failed to run rar2john
                 return null;
             }
 
@@ -1118,9 +1405,14 @@ namespace ZipCrackerUI
         {
             try
             {
+                // First try configured Perl path
+                string perlExe = !string.IsNullOrEmpty(_perlPath) && File.Exists(_perlPath)
+                    ? _perlPath
+                    : "perl";
+
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = "perl",
+                    FileName = perlExe,
                     Arguments = "--version",
                     UseShellExecute = false,
                     CreateNoWindow = true,
@@ -1177,15 +1469,30 @@ namespace ZipCrackerUI
         }
 
         /// <summary>
-        /// ค้นหา ZIP signature ใน SFX (.exe) file
+        /// ค้นหา ZIP or RAR signature ใน SFX (.exe) file
         /// </summary>
-        private static HashInfo ExtractZipFromSFX(BinaryReader br, string filePath)
+        private static HashInfo ExtractArchiveFromSFX(BinaryReader br, string filePath)
         {
-            // SFX = Self-Extracting Archive (.exe file with ZIP embedded)
-            // ค้นหา PK\x03\x04 signature ใน file
+            // First, try rar2john directly - it handles RAR SFX files well
+            string rarHash = TryRunRar2John(filePath);
+            if (!string.IsNullOrEmpty(rarHash))
+            {
+                var hashType = rarHash.Contains("$rar5$") ? HashType.RAR5 : HashType.RAR3;
+                return new HashInfo
+                {
+                    IsValid = true,
+                    Type = hashType,
+                    Hash = rarHash,
+                    ErrorMessage = "RAR SFX detected (extracted via rar2john)"
+                };
+            }
+
+            // SFX = Self-Extracting Archive (.exe file with ZIP or RAR embedded)
+            // ค้นหา PK\x03\x04 (ZIP) or Rar! (RAR) signature ใน file
 
             const uint ZIP_SIG = 0x04034b50;
-            const int MAX_SEARCH = 10 * 1024 * 1024; // ค้นหา 10MB แรก
+            const uint RAR_SIG = 0x21726152; // "Rar!"
+            const int MAX_SEARCH = 50 * 1024 * 1024; // ค้นหา 50MB แรก (เพิ่มจาก 10MB)
 
             long searchLimit = Math.Min(br.BaseStream.Length, MAX_SEARCH);
 
@@ -1207,13 +1514,29 @@ namespace ZipCrackerUI
                         return result;
                     }
                 }
+                else if (sig == RAR_SIG)
+                {
+                    // เจอ RAR signature! Use rar2john for extraction
+                    br.BaseStream.Position = pos;
+                    var result = ExtractRarHash(br, filePath);
+
+                    if (result.IsValid || result.Type == HashType.RAR3 || result.Type == HashType.RAR5)
+                    {
+                        // เพิ่มข้อความว่าเป็น SFX
+                        if (string.IsNullOrEmpty(result.ErrorMessage))
+                            result.ErrorMessage = $"RAR SFX detected at offset 0x{pos:X}";
+                        else
+                            result.ErrorMessage = $"RAR SFX detected at offset 0x{pos:X}. {result.ErrorMessage}";
+                        return result;
+                    }
+                }
             }
 
-            // ไม่เจอ ZIP signature ใน .exe file
+            // ไม่เจอ archive signature ใน .exe file
             return new HashInfo
             {
                 IsValid = false,
-                ErrorMessage = "This .exe file does not contain an encrypted ZIP archive (not a ZIP SFX)"
+                ErrorMessage = "This .exe file does not contain an encrypted archive (not a ZIP/RAR SFX)"
             };
         }
 

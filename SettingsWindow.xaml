@@ -1,7 +1,7 @@
 <Window x:Class="ZipCrackerUI.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="⚙️ Settings" Height="300" Width="500"
+        Title="⚙️ Settings" Height="500" Width="500"
         Background="{StaticResource PrimaryBrush}"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
@@ -91,13 +91,129 @@
                     </Border>
 
                     <!-- Auto-detect Hashcat -->
-                    <Border Background="#06060c" CornerRadius="8" Padding="16,12">
+                    <Border Background="#06060c" CornerRadius="8" Padding="16,12" Margin="0,0,0,12">
                         <StackPanel>
                             <CheckBox x:Name="chkAutoDetectHashcat" Content="Auto-detect Hashcat on startup"
                                       FontSize="12" IsChecked="True"/>
                             <TextBlock Text="Automatically search for hashcat.exe if not found"
                                        Foreground="{StaticResource TextDimBrush}"
                                        FontSize="10" Margin="24,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 7z2john Path -->
+                    <Border Background="#06060c" CornerRadius="8" Padding="16,12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="🔧 7Z2JOHN PATH" Foreground="{StaticResource AccentBrush}"
+                                       FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox x:Name="txt7z2johnPath" Grid.Column="0"
+                                         Style="{StaticResource ModernTextBox}"
+                                         Height="36" FontSize="12" Margin="0,0,8,0"
+                                         IsReadOnly="True"/>
+
+                                <Button x:Name="btnBrowse7z2john" Grid.Column="1"
+                                        Content="📂 Browse" Width="100" Height="36"
+                                        Style="{StaticResource ModernButton}"
+                                        Click="BtnBrowse7z2john_Click"/>
+                            </Grid>
+
+                            <TextBlock Text="Path to 7z2john.pl (for 7-Zip hash extraction)"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Perl Path -->
+                    <Border Background="#06060c" CornerRadius="8" Padding="16,12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="🐪 PERL PATH" Foreground="{StaticResource AccentBrush}"
+                                       FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox x:Name="txtPerlPath" Grid.Column="0"
+                                         Style="{StaticResource ModernTextBox}"
+                                         Height="36" FontSize="12" Margin="0,0,8,0"
+                                         IsReadOnly="True"/>
+
+                                <Button x:Name="btnBrowsePerl" Grid.Column="1"
+                                        Content="📂 Browse" Width="100" Height="36"
+                                        Style="{StaticResource ModernButton}"
+                                        Click="BtnBrowsePerl_Click"/>
+                            </Grid>
+
+                            <TextBlock Text="Path to perl.exe (required for 7z2john)"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- RAR2JOHN Path -->
+                    <Border Background="#06060c" CornerRadius="8" Padding="16,12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="📦 RAR2JOHN PATH" Foreground="{StaticResource AccentBrush}"
+                                       FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox x:Name="txtRar2johnPath" Grid.Column="0"
+                                         Style="{StaticResource ModernTextBox}"
+                                         Height="36" FontSize="12" Margin="0,0,8,0"
+                                         IsReadOnly="True"/>
+
+                                <Button x:Name="btnBrowseRar2john" Grid.Column="1"
+                                        Content="📂 Browse" Width="100" Height="36"
+                                        Style="{StaticResource ModernButton}"
+                                        Click="BtnBrowseRar2john_Click"/>
+                            </Grid>
+
+                            <TextBlock Text="Path to rar2john.exe (for RAR hash extraction)"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Dictionary File Path -->
+                    <Border Background="#06060c" CornerRadius="8" Padding="16,12">
+                        <StackPanel>
+                            <TextBlock Text="📖 DICTIONARY FILE" Foreground="{StaticResource AccentBrush}"
+                                       FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox x:Name="txtDictionaryPath" Grid.Column="0"
+                                         Style="{StaticResource ModernTextBox}"
+                                         Height="36" FontSize="12" Margin="0,0,8,0"
+                                         IsReadOnly="True"/>
+
+                                <Button x:Name="btnBrowseDictionary" Grid.Column="1"
+                                        Content="📂 Browse" Width="100" Height="36"
+                                        Style="{StaticResource ModernButton}"
+                                        Click="BtnBrowseDictionary_Click"/>
+                            </Grid>
+
+                            <TextBlock Text="Password wordlist for CPU dictionary attack in hybrid mode"
+                                       Foreground="{StaticResource TextDimBrush}"
+                                       FontSize="10" Margin="0,6,0,0"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>

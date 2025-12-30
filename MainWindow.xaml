@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="X-Repass - Archive Password Recovery"
         Height="900" Width="1350"
+        MinHeight="600" MinWidth="900"
         Background="{StaticResource PrimaryBrush}"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
@@ -12,22 +13,7 @@
 
     <Border CornerRadius="16" Background="{StaticResource PrimaryBrush}" BorderBrush="#2a2a4a" BorderThickness="1">
         <Grid>
-            <!-- Background Logo Watermark -->
-            <Image Source="logo.png"
-                   Width="500" Height="500"
-                   Opacity="0.35"
-                   Stretch="Uniform"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   Panel.ZIndex="0"
-                   IsHitTestVisible="False"
-                   RenderOptions.BitmapScalingMode="HighQuality">
-                <Image.Effect>
-                    <DropShadowEffect Color="#00f5ff" BlurRadius="80" ShadowDepth="0" Opacity="0.5"/>
-                </Image.Effect>
-            </Image>
-
-            <!-- Background Firefly Canvas (separate layer for smooth animation) -->
+            <!-- Background Firefly Canvas -->
             <Canvas x:Name="fireflyCanvas" Panel.ZIndex="1" IsHitTestVisible="False" ClipToBounds="True"/>
 
             <!-- Main Content Grid -->
@@ -239,330 +225,363 @@
             </Border>
 
             <!-- Row 2: Attack Settings + Action Buttons -->
-            <Border Grid.Row="2" Margin="8,0,8,4" CornerRadius="10" Padding="14,10">
+            <Border Grid.Row="2" Margin="8,0,8,4" CornerRadius="10" Padding="10,8">
                 <Border.Background>
                     <SolidColorBrush Color="#06060c" Opacity="0.9"/>
                 </Border.Background>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                              PanningMode="HorizontalOnly" Background="Transparent">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*" MinWidth="10"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                    <!-- Password Length -->
-                    <StackPanel Grid.Column="0" Margin="0,0,20,0">
-                        <TextBlock Text="📏 PASSWORD LENGTH" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBox x:Name="txtMinLen" Style="{StaticResource ModernTextBox}" Text="1" Width="55" Height="40" TextAlignment="Center" VerticalContentAlignment="Center" TextChanged="PasswordLength_Changed" LostFocus="PasswordLength_LostFocus"/>
-                            <TextBlock Text="TO" Foreground="#ffffff" VerticalAlignment="Center" Margin="10,0" FontSize="13" FontWeight="Bold"/>
-                            <TextBox x:Name="txtMaxLen" Style="{StaticResource ModernTextBox}" Text="8" Width="55" Height="40" TextAlignment="Center" VerticalContentAlignment="Center" TextChanged="PasswordLength_Changed" LostFocus="PasswordLength_LostFocus"/>
+                        <!-- Password Length -->
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="📏 LEN" Foreground="{StaticResource AccentBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBox x:Name="txtMinLen" Style="{StaticResource ModernTextBox}" Text="1" Width="38" Height="32" TextAlignment="Center" VerticalContentAlignment="Center" TextChanged="PasswordLength_Changed" LostFocus="PasswordLength_LostFocus"/>
+                                <TextBlock Text="-" Foreground="#ffffff" VerticalAlignment="Center" Margin="4,0" FontSize="11" FontWeight="Bold"/>
+                                <TextBox x:Name="txtMaxLen" Style="{StaticResource ModernTextBox}" Text="8" Width="38" Height="32" TextAlignment="Center" VerticalContentAlignment="Center" TextChanged="PasswordLength_Changed" LostFocus="PasswordLength_LostFocus"/>
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
 
-                    <!-- Charset Options -->
-                    <StackPanel Grid.Column="1" Margin="0,0,20,0">
-                        <TextBlock Text="🔤 CHARACTER SET" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,6"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <CheckBox x:Name="chkNumbers" Grid.Row="0" Grid.Column="0" Content="0-9" IsChecked="True" FontSize="11" Margin="0,0,10,2" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
-                            <CheckBox x:Name="chkLowercase" Grid.Row="0" Grid.Column="1" Content="a-z" IsChecked="True" FontSize="11" Margin="0,0,0,2" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
-                            <CheckBox x:Name="chkUppercase" Grid.Row="1" Grid.Column="0" Content="A-Z" FontSize="11" Margin="0,0,10,0" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
-                            <CheckBox x:Name="chkSpecial" Grid.Row="1" Grid.Column="1" Content="!@#$" FontSize="11" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
-                        </Grid>
-                        <TextBlock x:Name="lblCharsetInfo" Text="36 chars" Foreground="{StaticResource TextDimBrush}" FontSize="9" Margin="0,2,0,0"/>
-                    </StackPanel>
+                        <!-- Charset Options - Compact -->
+                        <Border Grid.Column="1" Margin="0,0,12,0" Background="#06060c" CornerRadius="5" BorderBrush="#1a2a4a" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Border Grid.Row="0" Background="#081020" CornerRadius="5,5,0,0" Padding="6,2">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="🔤" FontSize="8" Margin="0,0,3,0"/>
+                                        <TextBlock Text="CHARS" Foreground="{StaticResource AccentBrush}" FontSize="8" FontWeight="Bold"/>
+                                        <TextBlock x:Name="lblCharsetInfo" Text=" 36" Foreground="{StaticResource TextDimBrush}" FontSize="8"/>
+                                    </StackPanel>
+                                </Border>
+                                <Grid Grid.Row="1" Margin="6,3,6,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <CheckBox x:Name="chkNumbers" Grid.Row="0" Grid.Column="0" Content="0-9" IsChecked="True" FontSize="9" Margin="0,0,8,1" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
+                                    <CheckBox x:Name="chkLowercase" Grid.Row="0" Grid.Column="1" Content="a-z" IsChecked="True" FontSize="9" Margin="0,0,0,1" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
+                                    <CheckBox x:Name="chkUppercase" Grid.Row="1" Grid.Column="0" Content="A-Z" FontSize="9" Margin="0,0,8,0" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
+                                    <CheckBox x:Name="chkSpecial" Grid.Row="1" Grid.Column="1" Content="!@#" FontSize="9" Checked="Charset_Changed" Unchecked="Charset_Changed"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
 
-                    <!-- Total Passwords Info -->
-                    <StackPanel Grid.Column="2" Margin="0,0,20,0">
-                        <TextBlock Text="📊 TOTAL PASSWORDS" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
-                        <TextBlock x:Name="lblTotalPasswords" Text="--" Foreground="#ffaa00" FontSize="16" FontWeight="Bold"/>
-                        <TextBlock x:Name="lblTotalPasswordsDetail" Text="calculating..." Foreground="{StaticResource TextDimBrush}" FontSize="9"/>
-                    </StackPanel>
-
-                    <!-- CPU Threads -->
-                    <StackPanel Grid.Column="3" Margin="0,0,20,0">
-                        <TextBlock Text="⚡ CPU THREADS" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
-                        <TextBox x:Name="txtThreads" Style="{StaticResource ModernTextBox}" Text="12" Width="75" Height="40" TextAlignment="Center" VerticalContentAlignment="Center"/>
-                    </StackPanel>
-
-                    <!-- Engine Selection -->
-                    <StackPanel Grid.Column="4" Margin="0,0,24,0">
-                        <TextBlock Text="🖥️ ENGINE" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
-                        <StackPanel VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Height="22" Margin="0,0,0,4">
-                                <CheckBox x:Name="chkCpu" Content="💻 CPU" IsChecked="True" Margin="0,0,18,0" FontSize="13" VerticalAlignment="Center"/>
-                                <CheckBox x:Name="chkGpu" Content="🎮 GPU" Checked="ChkGpu_Checked" Unchecked="ChkGpu_Unchecked" FontSize="13" VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <CheckBox x:Name="chkUtf8" Content="🌏 UTF-8 (ภาษาไทย/อื่นๆ)" FontSize="10" VerticalAlignment="Center"
-                                      Checked="ChkUtf8_Checked" Unchecked="ChkUtf8_Unchecked"
-                                      ToolTip="รองรับภาษาไทยและภาษาอื่นๆ (ช้ากว่าปกติ)"/>
+                        <!-- Total Passwords Info - Compact -->
+                        <StackPanel Grid.Column="2" Margin="0,0,12,0" MinWidth="70">
+                            <TextBlock Text="📊 TOTAL" Foreground="{StaticResource AccentBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="lblTotalPasswords" Text="--" Foreground="#ffaa00" FontSize="12" FontWeight="Bold"/>
+                            <TextBlock x:Name="lblTotalPasswordsDetail" Text="calculating..." Foreground="{StaticResource TextDimBrush}" FontSize="7"/>
                         </StackPanel>
-                    </StackPanel>
 
-                    <!-- Spacer -->
-                    <Border Grid.Column="5"/>
+                        <!-- CPU Threads - Compact -->
+                        <StackPanel Grid.Column="3" Margin="0,0,12,0">
+                            <TextBlock Text="⚡ THR" Foreground="{StaticResource AccentBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBox x:Name="txtThreads" Style="{StaticResource ModernTextBox}" Text="12" Width="50" Height="32" TextAlignment="Center" VerticalContentAlignment="Center"/>
+                        </StackPanel>
 
-                    <!-- Action Buttons -->
-                    <StackPanel Grid.Column="6" Orientation="Horizontal">
-                        <Button x:Name="btnStart" Style="{StaticResource PrimaryButton}"
-                                Width="120" Height="42" FontSize="14" Click="BtnStart_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="▶" FontSize="16" Margin="0,0,8,0"/>
-                                <TextBlock Text="START" FontWeight="Bold"/>
+                        <!-- Engine Selection - Compact -->
+                        <StackPanel Grid.Column="4" Margin="0,0,12,0">
+                            <TextBlock Text="🖥️ ENGINE" Foreground="{StaticResource AccentBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <StackPanel Orientation="Horizontal" Height="18">
+                                <CheckBox x:Name="chkCpu" Content="CPU" IsChecked="True" Margin="0,0,8,0" FontSize="10" VerticalAlignment="Center"/>
+                                <CheckBox x:Name="chkGpu" Content="GPU" Checked="ChkGpu_Checked" Unchecked="ChkGpu_Unchecked" FontSize="10" VerticalAlignment="Center"/>
                             </StackPanel>
-                        </Button>
-                        <Button x:Name="btnPause" Style="{StaticResource ModernButton}"
-                                Width="100" Height="42" FontSize="13" Margin="8,0,0,0" IsEnabled="False" Click="BtnPause_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock x:Name="txtPauseIcon" Text="⏸" FontSize="14" Margin="0,0,6,0"/>
-                                <TextBlock x:Name="txtPauseText" Text="PAUSE"/>
-                            </StackPanel>
-                        </Button>
-                        <Button x:Name="btnStop" Style="{StaticResource DangerButton}"
-                                Width="100" Height="42" FontSize="13" Margin="8,0,0,0" IsEnabled="False" Click="BtnStop_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="⏹" FontSize="14" Margin="0,0,6,0"/>
-                                <TextBlock Text="STOP"/>
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-                    <!-- Hidden elements - moved to Settings window -->
-                    <TextBox x:Name="txtHashcatPath" Grid.Column="5" Visibility="Collapsed" Width="0" Height="0"
-                             IsReadOnly="True" Background="Transparent" Foreground="Transparent" BorderThickness="0"/>
-                    <Button x:Name="btnBrowseHashcat" Grid.Column="5" Visibility="Collapsed" Width="0" Height="0"
-                            Background="Transparent" BorderThickness="0" Click="BtnBrowseHashcat_Click"/>
-                    <TextBox x:Name="txtPattern" Grid.Column="5" Visibility="Collapsed" Width="0" Height="0" Text="????"/>
-                </Grid>
+                        </StackPanel>
+
+                        <!-- Attack Strategy - Compact -->
+                        <Border Grid.Column="5" Margin="0,0,12,0" Background="#06060c" CornerRadius="5" BorderBrush="#1a2a4a" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Border Grid.Row="0" Background="#081020" CornerRadius="5,5,0,0" Padding="6,2">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="🎯" FontSize="8" Margin="0,0,3,0"/>
+                                        <TextBlock Text="MODE" Foreground="{StaticResource AccentBrush}" FontSize="8" FontWeight="Bold"/>
+                                    </StackPanel>
+                                </Border>
+                                <ComboBox x:Name="cboStrategy" Grid.Row="1" Width="110" Height="26" Margin="3"
+                                          SelectedIndex="0" FontSize="9"
+                                          Background="#0a0a14" Foreground="#ffffff"
+                                          BorderBrush="#2a3a5a" BorderThickness="1">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Icon}" FontSize="10" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Name}" FontSize="9" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <!-- Spacer -->
+                        <Border Grid.Column="6"/>
+
+                        <!-- Action Buttons - Always visible -->
+                        <StackPanel Grid.Column="7" Orientation="Horizontal">
+                            <Button x:Name="btnStart" Style="{StaticResource PrimaryButton}"
+                                    MinWidth="70" Width="Auto" Height="36" FontSize="12" Padding="10,0" Click="BtnStart_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="▶" FontSize="12" Margin="0,0,4,0"/>
+                                    <TextBlock Text="START" FontWeight="Bold"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="btnPause" Style="{StaticResource ModernButton}"
+                                    MinWidth="36" Width="Auto" Height="36" FontSize="11" Margin="4,0,0,0" Padding="8,0" IsEnabled="False" Click="BtnPause_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="txtPauseIcon" Text="⏸" FontSize="11" Margin="0,0,3,0"/>
+                                    <TextBlock x:Name="txtPauseText" Text="II" FontSize="10"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="btnStop" Style="{StaticResource DangerButton}"
+                                    MinWidth="36" Width="Auto" Height="36" FontSize="11" Margin="4,0,0,0" Padding="8,0" IsEnabled="False" Click="BtnStop_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="⏹" FontSize="11" Margin="0,0,3,0"/>
+                                    <TextBlock Text="■" FontSize="10"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <!-- Hidden elements - moved to Settings window -->
+                        <TextBox x:Name="txtHashcatPath" Grid.Column="5" Visibility="Collapsed" Width="0" Height="0"
+                                 IsReadOnly="True" Background="Transparent" Foreground="Transparent" BorderThickness="0"/>
+                        <Button x:Name="btnBrowseHashcat" Grid.Column="5" Visibility="Collapsed" Width="0" Height="0"
+                                Background="Transparent" BorderThickness="0" Click="BtnBrowseHashcat_Click"/>
+                        <TextBox x:Name="txtPattern" Grid.Column="5" Visibility="Collapsed" Width="0" Height="0" Text="????"/>
+                    </Grid>
+                </ScrollViewer>
             </Border>
 
-            <!-- Row 3: Monitoring Panel with Graph and Progress Bars -->
-            <Border Grid.Row="3" Margin="8,0,8,4" CornerRadius="8" Padding="12,10">
+            <!-- Row 3: Monitoring Panel with Speedometer and Stats -->
+            <Border Grid.Row="3" Margin="8,0,8,4" CornerRadius="8" Padding="10,6">
                 <Border.Background>
                     <SolidColorBrush Color="#06060c" Opacity="0.9"/>
                 </Border.Background>
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*" MinWidth="150"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Left: Progress Bars and Stats -->
+                    <!-- Left: System Log -->
                     <Grid Grid.Column="0" Margin="0,0,12,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <!-- Progress Section Header -->
-                        <TextBlock Grid.Row="0" Text="⚡ PROGRESS" Foreground="{StaticResource AccentBrush}"
-                                   FontSize="10" FontWeight="Bold" Margin="0,0,0,8"/>
+                        <!-- System Log Header -->
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="📢" FontSize="10" Margin="0,0,4,0"/>
+                            <TextBlock Text="SYSTEM / NOTIFICATIONS" Foreground="#4488ff"
+                                       FontSize="9" FontWeight="Bold"/>
+                        </StackPanel>
 
-                        <!-- CPU Progress Bar (Large) -->
-                        <Grid Grid.Row="1" Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="60"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="60"/>
-                            </Grid.ColumnDefinitions>
+                        <!-- System Log TextBox - Fixed height, hidden scrollbar -->
+                        <Border Grid.Row="1" Background="#040408" CornerRadius="6" BorderBrush="#1a2a4a" BorderThickness="1"
+                                MaxHeight="120">
+                            <TextBox x:Name="txtSystemLog" Style="{StaticResource LogTextBox}" Foreground="#4488ff"
+                                     FontSize="10" VerticalScrollBarVisibility="Hidden" TextWrapping="Wrap"/>
+                        </Border>
 
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="💻" FontSize="12" Margin="0,0,4,0"/>
-                                <TextBlock Text="CPU" Foreground="#00ff88" FontSize="11" FontWeight="Bold"/>
-                            </StackPanel>
+                        <!-- Hidden progress bars for code compatibility -->
+                        <StackPanel Visibility="Collapsed">
+                            <ProgressBar x:Name="progressBarCpuLarge" Height="0"/>
+                            <TextBlock x:Name="lblProgressCpuLarge" Text="0.0%"/>
+                            <ProgressBar x:Name="progressBarGpuLarge" Height="0"/>
+                            <TextBlock x:Name="lblProgressGpuLarge" Text="0.0%"/>
+                            <ProgressBar x:Name="progressBarLarge" Height="0"/>
+                            <TextBlock x:Name="lblProgressLarge" Text="0.0%"/>
+                        </StackPanel>
 
-                            <ProgressBar Grid.Column="1" x:Name="progressBarCpuLarge" Height="10" VerticalAlignment="Center" Margin="8,0"
-                                     Minimum="0" Maximum="100" Value="0">
-                                <ProgressBar.Foreground>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Color="#00ff88" Offset="0"/>
-                                        <GradientStop Color="#00cc66" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </ProgressBar.Foreground>
-                            </ProgressBar>
-
-                            <TextBlock Grid.Column="2" x:Name="lblProgressCpuLarge" Text="0.0%"
-                                       Foreground="#00ff88" FontSize="11" FontWeight="Bold"
-                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        </Grid>
-
-                        <!-- GPU Progress Bar (Large) -->
-                        <Grid Grid.Row="2" Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="60"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="60"/>
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="🎮" FontSize="12" Margin="0,0,4,0"/>
-                                <TextBlock Text="GPU" Foreground="#ff6b35" FontSize="11" FontWeight="Bold"/>
-                            </StackPanel>
-
-                            <ProgressBar Grid.Column="1" x:Name="progressBarGpuLarge" Height="10" VerticalAlignment="Center" Margin="8,0"
-                                     Minimum="0" Maximum="100" Value="0">
-                                <ProgressBar.Foreground>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Color="#ff6b35" Offset="0"/>
-                                        <GradientStop Color="#ff3300" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </ProgressBar.Foreground>
-                            </ProgressBar>
-
-                            <TextBlock Grid.Column="2" x:Name="lblProgressGpuLarge" Text="0.0%"
-                                       Foreground="#ff6b35" FontSize="11" FontWeight="Bold"
-                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        </Grid>
-
-                        <!-- Overall Progress Bar (Large) -->
-                        <Grid Grid.Row="3">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="60"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="60"/>
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="📊" FontSize="12" Margin="0,0,4,0"/>
-                                <TextBlock Text="ALL" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold"/>
-                            </StackPanel>
-
-                            <ProgressBar Grid.Column="1" x:Name="progressBarLarge" Height="12" VerticalAlignment="Center" Margin="8,0"
-                                     Minimum="0" Maximum="100" Value="0">
-                                <ProgressBar.Effect>
-                                    <DropShadowEffect Color="{StaticResource NeonCyan}" BlurRadius="8" ShadowDepth="0" Opacity="0.5"/>
-                                </ProgressBar.Effect>
-                            </ProgressBar>
-
-                            <TextBlock Grid.Column="2" x:Name="lblProgressLarge" Text="0.0%"
-                                       Foreground="{StaticResource AccentBrush}" FontSize="12" FontWeight="Bold"
-                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        </Grid>
-
-                        <!-- File Info Stats (Row 4) -->
-                        <Grid Grid.Row="4" Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- File Name -->
-                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                <TextBlock Text="📄 FILE" Foreground="{StaticResource TextDimBrush}" FontSize="8" FontWeight="Bold"/>
-                                <TextBlock x:Name="lblFileNameLarge" Text="--" Foreground="{StaticResource TextBrush}"
-                                           FontSize="10" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-                            </StackPanel>
-
-                            <!-- File Size -->
-                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                                <TextBlock Text="💾 SIZE" Foreground="{StaticResource TextDimBrush}" FontSize="8" FontWeight="Bold"/>
-                                <TextBlock x:Name="lblFileSizeLarge" Text="--" Foreground="{StaticResource TextBrush}" FontSize="10"/>
-                            </StackPanel>
-
-                            <!-- Hash Type -->
-                            <StackPanel Grid.Column="2" Margin="0,0,8,0">
-                                <TextBlock Text="🔐 TYPE" Foreground="{StaticResource TextDimBrush}" FontSize="8" FontWeight="Bold"/>
-                                <TextBlock x:Name="lblHashTypeLarge" Text="--" Foreground="{StaticResource TextBrush}" FontSize="10"/>
-                            </StackPanel>
-
-                            <!-- Hashcat Mode -->
-                            <StackPanel Grid.Column="3">
-                                <TextBlock Text="🎮 MODE" Foreground="{StaticResource TextDimBrush}" FontSize="8" FontWeight="Bold"/>
-                                <TextBlock x:Name="lblHashcatModeLarge" Text="--" Foreground="{StaticResource AccentBrush}" FontSize="10" FontWeight="Bold"/>
-                            </StackPanel>
-                        </Grid>
-
-                        <!-- Hardware Info (Row 5) -->
-                        <Grid Grid.Row="5" Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- CPU Model -->
-                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                <TextBlock Text="💻 CPU" Foreground="{StaticResource TextDimBrush}" FontSize="8" FontWeight="Bold"/>
-                                <TextBlock x:Name="lblCpuModel" Text="--" Foreground="{StaticResource TextBrush}"
-                                           FontSize="9" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-                            </StackPanel>
-
-                            <!-- GPU Model -->
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="🎮 GPU" Foreground="{StaticResource TextDimBrush}" FontSize="8" FontWeight="Bold"/>
-                                <TextBlock x:Name="lblGpuModel" Text="--" Foreground="{StaticResource AccentBrush}"
-                                           FontSize="9" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-                            </StackPanel>
-                        </Grid>
+                        <!-- Hidden Hardware Info for compatibility -->
+                        <StackPanel Visibility="Collapsed">
+                            <TextBlock x:Name="lblCpuModel" Text="--"/>
+                            <TextBlock x:Name="lblGpuModel" Text="--"/>
+                        </StackPanel>
                     </Grid>
 
-                    <!-- Right: Temperature Graph and Stats -->
-                    <Border Grid.Column="1" Width="300" CornerRadius="8" Background="#040408"
-                            BorderBrush="#1a1a2a" BorderThickness="1" Padding="10">
+                    <!-- Speedometer Gauge -->
+                    <Border Grid.Column="1" Width="120" CornerRadius="8" Background="#040408"
+                            BorderBrush="#1a1a2a" BorderThickness="1" Padding="6" Margin="0,0,6,0">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="120"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Gauge Header -->
+                            <TextBlock Grid.Row="0" Text="⚡ SPEED" Foreground="#ffaa00"
+                                       FontSize="9" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+
+                            <!-- Speedometer Canvas -->
+                            <Grid Grid.Row="1">
+                                <Canvas x:Name="speedometerCanvas" Width="100" Height="60" ClipToBounds="True"/>
+                                <!-- Speed Value -->
+                                <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                    <TextBlock x:Name="lblSpeedGauge" Text="0" Foreground="#ffaa00"
+                                               FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="/sec" Foreground="#886600" FontSize="8" HorizontalAlignment="Center" Margin="0,-3,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- Stats Panel -->
+                    <Border Grid.Column="2" Width="160" CornerRadius="8" Background="#040408"
+                            BorderBrush="#1a1a2a" BorderThickness="1" Padding="8,6" Margin="0,0,6,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
+                            <!-- Elapsed Time -->
+                            <Grid Grid.Row="0" Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="⏱ TIME" Foreground="#666688" FontSize="8" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="lblTimePanel" Grid.Column="1" Text="00:00:00" Foreground="{StaticResource AccentBrush}"
+                                           FontSize="14" FontWeight="Bold" HorizontalAlignment="Right"/>
+                            </Grid>
+
+                            <!-- Total Attempts -->
+                            <Grid Grid.Row="1" Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="🔢 TESTED" Foreground="#666688" FontSize="8" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="lblAttemptsPanel" Grid.Column="1" Text="0" FontSize="14" FontWeight="Bold" HorizontalAlignment="Right">
+                                    <TextBlock.Foreground>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#00f5ff" Offset="0"/>
+                                            <GradientStop Color="#ff00ff" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </TextBlock.Foreground>
+                                </TextBlock>
+                            </Grid>
+
+                            <!-- File Info -->
+                            <Grid Grid.Row="2" Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="📄 FILE" Foreground="#666688" FontSize="8" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="lblFileNameLarge" Grid.Column="1" Text="--" Foreground="{StaticResource TextBrush}"
+                                           FontSize="9" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="100"
+                                           ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                            </Grid>
+
+                            <!-- Hash Type -->
+                            <Grid Grid.Row="3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="🔐 TYPE" Foreground="#666688" FontSize="8" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="lblHashTypeLarge" Grid.Column="1" Text="--" Foreground="{StaticResource AccentBrush}"
+                                           FontSize="9" FontWeight="Bold" HorizontalAlignment="Right"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- Temperature Graph Panel -->
+                    <Border Grid.Column="3" Width="160" CornerRadius="8" Background="#040408"
+                            BorderBrush="#1a1a2a" BorderThickness="1" Padding="6" Margin="0,0,6,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
                             <!-- Graph Header -->
-                            <TextBlock Grid.Row="0" Text="🌡️ TEMPERATURE &amp; USAGE"
-                                       Foreground="{StaticResource AccentBrush}"
-                                       FontSize="9" FontWeight="Bold" Margin="0,0,0,6"/>
+                            <TextBlock Grid.Row="0" Text="📈 PERFORMANCE" Foreground="{StaticResource AccentBrush}"
+                                       FontSize="9" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,4"/>
 
                             <!-- Temperature Graph Canvas -->
                             <Border Grid.Row="1" Background="#020204" CornerRadius="4" BorderBrush="#0a0a14" BorderThickness="1">
                                 <Canvas x:Name="tempGraphCanvas" ClipToBounds="True"/>
                             </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Temperature Stats Panel -->
+                    <Border Grid.Column="4" Width="90" CornerRadius="8" Background="#040408"
+                            BorderBrush="#1a1a2a" BorderThickness="1" Padding="5">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Temp Header -->
+                            <TextBlock Grid.Row="0" Text="🌡️ TEMP" Foreground="{StaticResource AccentBrush}"
+                                       FontSize="9" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,4"/>
 
                             <!-- Temperature Stats -->
-                            <Grid Grid.Row="2" Margin="0,8,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                            <Grid Grid.Row="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
 
                                 <!-- CPU Temp -->
-                                <Border Grid.Column="0" Background="#0a1a0a" CornerRadius="4" Padding="6,4" Margin="0,0,4,0">
-                                    <StackPanel>
-                                        <TextBlock Text="CPU" Foreground="#00ff88" FontSize="8" FontWeight="Bold"/>
-                                        <TextBlock x:Name="lblCpuTempLarge" Text="--°C" Foreground="#00ff88"
-                                                   FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
-                                        <TextBlock x:Name="lblCpuUsageLarge" Text="--%"  Foreground="#888888"
-                                                   FontSize="9" HorizontalAlignment="Center"/>
+                                <Border Grid.Row="0" Background="#0a1a0a" CornerRadius="4" Padding="4,2" Margin="0,0,0,2">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <TextBlock Text="CPU " Foreground="#00ff88" FontSize="8" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblCpuTempLarge" Text="--°" Foreground="#00ff88"
+                                                   FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblCpuUsageLarge" Text=" --%"  Foreground="#666666"
+                                                   FontSize="8" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
 
                                 <!-- GPU Temp -->
-                                <Border Grid.Column="1" Background="#1a0a0a" CornerRadius="4" Padding="6,4" Margin="4,0,0,0">
-                                    <StackPanel>
-                                        <TextBlock Text="GPU" Foreground="#ff6b35" FontSize="8" FontWeight="Bold"/>
-                                        <TextBlock x:Name="lblGpuTempLarge" Text="--°C" Foreground="#ff6b35"
-                                                   FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
-                                        <TextBlock x:Name="lblGpuUsageLarge" Text="--%"  Foreground="#888888"
-                                                   FontSize="9" HorizontalAlignment="Center"/>
+                                <Border Grid.Row="1" Background="#1a0a0a" CornerRadius="4" Padding="4,2" Margin="0,2,0,0">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <TextBlock Text="GPU " Foreground="#ff6b35" FontSize="8" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblGpuTempLarge" Text="--°" Foreground="#ff6b35"
+                                                   FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblGpuUsageLarge" Text=" --%"  Foreground="#666666"
+                                                   FontSize="8" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
                             </Grid>
                         </Grid>
                     </Border>
+
+                    <!-- Hidden elements for compatibility -->
+                    <TextBlock x:Name="lblFileSizeLarge" Visibility="Collapsed" Text="--"/>
+                    <TextBlock x:Name="lblHashcatModeLarge" Visibility="Collapsed" Text="--"/>
                 </Grid>
             </Border>
 
@@ -573,39 +592,40 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- CPU Log Panel -->
-                <Border Grid.Column="0" CornerRadius="8" Margin="0,0,3,0" Background="#040408" BorderBrush="#1a3a2a" BorderThickness="1">
+                <!-- CPU Log Panel (semi-transparent to see fireflies) -->
+                <Border Grid.Column="0" CornerRadius="8" Margin="0,0,4,0" BorderBrush="#1a3a2a" BorderThickness="1">
+                    <Border.Background>
+                        <SolidColorBrush Color="#040408" Opacity="0.85"/>
+                    </Border.Background>
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="22"/>
-                            <RowDefinition Height="50"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="32"/>
                         </Grid.RowDefinitions>
 
-                        <!-- Header -->
+                            <!-- Header with CPU Model and Current Pattern -->
                         <Border Grid.Row="0" Background="#081810" CornerRadius="8,8,0,0" Padding="8,3">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="💻" FontSize="10" Margin="0,0,4,0"/>
-                                <TextBlock Text="CPU ENGINE" Foreground="#00ff88" FontSize="9" FontWeight="Bold"/>
+                                <TextBlock Text="CPU" Foreground="#00ff88" FontSize="9" FontWeight="Bold"/>
+                                <TextBlock Text=" - " Foreground="#2a5a3a" FontSize="9"/>
+                                <TextBlock x:Name="lblCpuHeaderPattern" Text="READY" Foreground="#00ff88" FontSize="9" FontWeight="Bold"/>
                             </StackPanel>
                         </Border>
 
-                        <!-- Progress Section -->
+                        <!-- Stats Section with Progress Bar -->
                         <Border Grid.Row="1" Background="#061208" Padding="8,4">
                             <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Pattern and Status -->
-                                <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,4">
+                                <!-- Stats Row -->
+                                <StackPanel Grid.Row="0" Orientation="Horizontal">
                                     <Border Background="#0a2a1a" CornerRadius="3" Padding="6,2" Margin="0,0,6,0">
                                         <TextBlock x:Name="lblCpuPattern" Text="Idle" Foreground="#00ff88" FontSize="9" FontWeight="Bold" MaxWidth="180" TextTrimming="CharacterEllipsis"/>
                                     </Border>
@@ -624,19 +644,106 @@
                                     <TextBlock x:Name="lblCpuCurrentAction" Text="Idle" Foreground="#4a8a5a" FontSize="9" VerticalAlignment="Center"/>
                                 </StackPanel>
 
-                                <!-- Progress Bar -->
-                                <TextBlock Grid.Row="1" Grid.Column="0" x:Name="lblCpuChunkProgress" Text="0%" Foreground="#00ff88" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ProgressBar Grid.Row="1" Grid.Column="1" x:Name="progressBarCpuChunk" Height="8" Minimum="0" Maximum="100" Value="0">
-                                    <ProgressBar.Foreground>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#00ff88" Offset="0"/>
-                                            <GradientStop Color="#00cc66" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </ProgressBar.Foreground>
-                                </ProgressBar>
-                                <TextBlock Grid.Row="1" Grid.Column="2" x:Name="lblCpuChunkInfo" Text="0/0" Foreground="#2a5a3a" FontSize="8" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                <!-- CPU Overall Progress Bar Row -->
+                                <Grid Grid.Row="1" Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Label -->
+                                    <TextBlock Grid.Column="0" Text="TOTAL" Foreground="#2a5a3a" FontSize="8" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+
+                                    <!-- Beautiful Progress Bar -->
+                                    <Border Grid.Column="1" Background="#0a1a0a" CornerRadius="4" Height="12" Margin="0,0,8,0">
+                                        <Grid>
+                                            <!-- Progress Fill -->
+                                            <Border x:Name="cpuProgressFill" CornerRadius="4" HorizontalAlignment="Left" Width="0">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#00aa55" Offset="0"/>
+                                                        <GradientStop Color="#00ff88" Offset="0.5"/>
+                                                        <GradientStop Color="#00cc66" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <Border.Effect>
+                                                    <DropShadowEffect Color="#00ff88" BlurRadius="8" ShadowDepth="0" Opacity="0.5"/>
+                                                </Border.Effect>
+                                            </Border>
+                                            <!-- Shimmer Effect -->
+                                            <Border CornerRadius="4" Opacity="0.3">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                        <GradientStop Color="#ffffff" Offset="0"/>
+                                                        <GradientStop Color="Transparent" Offset="0.5"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Progress Text -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock x:Name="lblCpuProgressPercent" Text="0%" Foreground="#00ff88" FontSize="10" FontWeight="Bold" Width="35" TextAlignment="Right"/>
+                                        <TextBlock x:Name="lblCpuPhaseInfo" Text="" Foreground="#2a5a3a" FontSize="8" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- CPU Wordlist Progress Bar (Current Wordlist) -->
+                                <Grid Grid.Row="2" Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Label -->
+                                    <TextBlock Grid.Column="0" Text="FILE " Foreground="#3a5a4a" FontSize="8" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+
+                                    <!-- Wordlist Progress Bar (Cyan) -->
+                                    <Border Grid.Column="1" Background="#0a1a1a" CornerRadius="4" Height="10" Margin="0,0,8,0">
+                                        <Grid>
+                                            <!-- Progress Fill -->
+                                            <Border x:Name="cpuWordlistProgressFill" CornerRadius="4" HorizontalAlignment="Left" Width="0">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#0088aa" Offset="0"/>
+                                                        <GradientStop Color="#00bbdd" Offset="0.5"/>
+                                                        <GradientStop Color="#00aacc" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <Border.Effect>
+                                                    <DropShadowEffect Color="#00bbdd" BlurRadius="6" ShadowDepth="0" Opacity="0.4"/>
+                                                </Border.Effect>
+                                            </Border>
+                                            <!-- Shimmer Effect -->
+                                            <Border CornerRadius="4" Opacity="0.2">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                        <GradientStop Color="#ffffff" Offset="0"/>
+                                                        <GradientStop Color="Transparent" Offset="0.5"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Wordlist Progress Text -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock x:Name="lblCpuWordlistPercent" Text="0%" Foreground="#00bbdd" FontSize="9" FontWeight="Bold" Width="35" TextAlignment="Right"/>
+                                        <TextBlock x:Name="lblCpuWordlistDetail" Text="" Foreground="#3a5a4a" FontSize="8" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
                             </Grid>
                         </Border>
+
+                        <!-- Hidden Progress Bar for code compatibility -->
+                        <StackPanel Visibility="Collapsed">
+                            <TextBlock x:Name="lblCpuChunkProgress" Text="0%"/>
+                            <ProgressBar x:Name="progressBarCpuChunk" Height="8" Minimum="0" Maximum="100" Value="0"/>
+                            <TextBlock x:Name="lblCpuChunkInfo" Text="0/0"/>
+                        </StackPanel>
 
                         <!-- Log -->
                         <TextBox x:Name="txtLog" Grid.Row="2" Style="{StaticResource LogTextBox}" Foreground="#00ff88"/>
@@ -645,17 +752,27 @@
                         <Border Grid.Row="3" Background="#081810" CornerRadius="0,0,8,8" Padding="8,4">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
+                                <StackPanel Grid.Column="0" Margin="0,0,16,0">
                                     <TextBlock Text="SPEED" Foreground="#2a5a3a" FontSize="7" FontWeight="Bold"/>
                                     <TextBlock x:Name="lblCpuSpeed" Text="0 /sec" Foreground="#00ff88" FontSize="10" FontWeight="Bold"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="1">
+                                <StackPanel Grid.Column="1" Margin="0,0,16,0">
                                     <TextBlock Text="TESTED" Foreground="#2a5a3a" FontSize="7" FontWeight="Bold"/>
                                     <TextBlock x:Name="lblCpuAttempts" Text="0" Foreground="#00ff88" FontSize="10" FontWeight="Bold"/>
                                 </StackPanel>
+                                <!-- Current Password Display -->
+                                <Border Grid.Column="2" Background="#0a2a1a" CornerRadius="4" Padding="8,2" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="🔑 " Foreground="#2a5a3a" FontSize="9" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblCpuCurrentPassword" Text="--" Foreground="#00ff88"
+                                                   FontSize="11" FontWeight="Bold" FontFamily="Consolas"
+                                                   MaxWidth="280" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </Border>
                             </Grid>
                         </Border>
 
@@ -695,39 +812,54 @@
                     </Grid>
                 </Border>
 
-                <!-- GPU Log Panel -->
-                <Border Grid.Column="1" CornerRadius="8" Margin="3,0,0,0" Background="#040408" BorderBrush="#3a1a1a" BorderThickness="1">
+                <!-- GPU Log Panel (semi-transparent to see fireflies) -->
+                <Border Grid.Column="1" CornerRadius="8" Margin="4,0,0,0" BorderBrush="#3a1a1a" BorderThickness="1">
+                    <Border.Background>
+                        <SolidColorBrush Color="#040408" Opacity="0.85"/>
+                    </Border.Background>
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="22"/>
-                            <RowDefinition Height="50"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="32"/>
                         </Grid.RowDefinitions>
 
-                        <!-- Header -->
+                        <!-- Header with GPU Model -->
                         <Border Grid.Row="0" Background="#180808" CornerRadius="8,8,0,0" Padding="8,3">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🎮" FontSize="10" Margin="0,0,4,0"/>
-                                <TextBlock Text="GPU (HASHCAT)" Foreground="#ff6b35" FontSize="9" FontWeight="Bold"/>
+                                <TextBlock Text="GPU - BRUTE FORCE" Foreground="#ff6b35" FontSize="9" FontWeight="Bold"/>
                             </StackPanel>
                         </Border>
 
-                        <!-- Progress Section -->
+                        <!-- Hash Display + Stats Section -->
                         <Border Grid.Row="1" Background="#120806" Padding="8,4">
                             <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Pattern and Status -->
-                                <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,0,0,4">
+                                <!-- Hash Display -->
+                                <Border Grid.Row="0" Background="#0a0404" CornerRadius="4" Padding="6,3" Margin="0,0,0,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="🔐 " Foreground="#5a2a2a" FontSize="9" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="lblGpuHashPreview" Grid.Column="1" Text="No hash loaded"
+                                                   Foreground="#884422" FontSize="9" FontFamily="Consolas"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                   ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Pattern and Status (Row 1) -->
+                                <StackPanel Grid.Row="1" Orientation="Horizontal">
                                     <Border Background="#2a0a0a" CornerRadius="3" Padding="6,2" Margin="0,0,6,0">
                                         <TextBlock x:Name="lblGpuPattern" Text="Idle" Foreground="#ff6b35" FontSize="9" FontWeight="Bold" MaxWidth="180" TextTrimming="CharacterEllipsis"/>
                                     </Border>
@@ -746,22 +878,117 @@
                                     <TextBlock x:Name="lblGpuCurrentAction" Text="Idle" Foreground="#8a5a4a" FontSize="9" VerticalAlignment="Center"/>
                                 </StackPanel>
 
-                                <!-- Progress Bar -->
-                                <TextBlock Grid.Row="1" Grid.Column="0" x:Name="lblGpuChunkProgress" Text="0%" Foreground="#ff6b35" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ProgressBar Grid.Row="1" Grid.Column="1" x:Name="progressBarGpuChunk" Height="8" Minimum="0" Maximum="100" Value="0">
-                                    <ProgressBar.Foreground>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#ff6b35" Offset="0"/>
-                                            <GradientStop Color="#ff3300" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </ProgressBar.Foreground>
-                                </ProgressBar>
-                                <TextBlock Grid.Row="1" Grid.Column="2" x:Name="lblGpuChunkInfo" Text="0/0" Foreground="#5a2a2a" FontSize="8" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                <!-- GPU Overall Progress Bar -->
+                                <Grid Grid.Row="2" Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Label -->
+                                    <TextBlock Grid.Column="0" Text="TOTAL" Foreground="#5a3a2a" FontSize="8" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+
+                                    <!-- Beautiful Progress Bar -->
+                                    <Border Grid.Column="1" Background="#1a0a0a" CornerRadius="4" Height="12" Margin="0,0,8,0">
+                                        <Grid>
+                                            <!-- Progress Fill -->
+                                            <Border x:Name="gpuProgressFill" CornerRadius="4" HorizontalAlignment="Left" Width="0">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#cc4411" Offset="0"/>
+                                                        <GradientStop Color="#ff6b35" Offset="0.5"/>
+                                                        <GradientStop Color="#ff8855" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <Border.Effect>
+                                                    <DropShadowEffect Color="#ff6b35" BlurRadius="8" ShadowDepth="0" Opacity="0.5"/>
+                                                </Border.Effect>
+                                            </Border>
+                                            <!-- Shimmer Effect -->
+                                            <Border CornerRadius="4" Opacity="0.3">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                        <GradientStop Color="#ffffff" Offset="0"/>
+                                                        <GradientStop Color="Transparent" Offset="0.5"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Progress Text -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock x:Name="lblGpuProgressPercent" Text="0%" Foreground="#ff6b35" FontSize="10" FontWeight="Bold" Width="35" TextAlignment="Right"/>
+                                        <TextBlock x:Name="lblGpuPhaseInfo" Text="" Foreground="#5a2a2a" FontSize="8" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- GPU Phase Progress Bar (Current Phase) -->
+                                <Grid Grid.Row="3" Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Label -->
+                                    <TextBlock Grid.Column="0" Text="PHASE" Foreground="#4a3a5a" FontSize="8" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+
+                                    <!-- Phase Progress Bar (Purple/Magenta) -->
+                                    <Border Grid.Column="1" Background="#1a0a1a" CornerRadius="4" Height="10" Margin="0,0,8,0">
+                                        <Grid>
+                                            <!-- Progress Fill -->
+                                            <Border x:Name="gpuPhaseProgressFill" CornerRadius="4" HorizontalAlignment="Left" Width="0">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#8833aa" Offset="0"/>
+                                                        <GradientStop Color="#bb55dd" Offset="0.5"/>
+                                                        <GradientStop Color="#aa44cc" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <Border.Effect>
+                                                    <DropShadowEffect Color="#bb55dd" BlurRadius="6" ShadowDepth="0" Opacity="0.4"/>
+                                                </Border.Effect>
+                                            </Border>
+                                            <!-- Shimmer Effect -->
+                                            <Border CornerRadius="4" Opacity="0.2">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                        <GradientStop Color="#ffffff" Offset="0"/>
+                                                        <GradientStop Color="Transparent" Offset="0.5"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Phase Progress Text -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock x:Name="lblGpuPhasePercent" Text="0%" Foreground="#bb55dd" FontSize="9" FontWeight="Bold" Width="35" TextAlignment="Right"/>
+                                        <TextBlock x:Name="lblGpuPhaseDetail" Text="" Foreground="#4a3a5a" FontSize="8" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
                             </Grid>
                         </Border>
 
-                        <!-- Log -->
-                        <TextBox x:Name="txtGpuLog" Grid.Row="2" Style="{StaticResource LogTextBox}" Foreground="#ff6b35"/>
+                        <!-- Hidden Progress Bar for code compatibility -->
+                        <StackPanel Visibility="Collapsed">
+                            <TextBlock x:Name="lblGpuChunkProgress" Text="0%"/>
+                            <ProgressBar x:Name="progressBarGpuChunk" Height="8" Minimum="0" Maximum="100" Value="0"/>
+                            <TextBlock x:Name="lblGpuChunkInfo" Text="0/0"/>
+                        </StackPanel>
+
+                        <!-- Log with Logo Background -->
+                        <Grid Grid.Row="2">
+                            <!-- Logo Background (show complete image, centered) -->
+                            <Image x:Name="imgGpuLogo" Source="logo.png" Opacity="0.15"
+                                   Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                            <!-- GPU Log TextBox -->
+                            <TextBox x:Name="txtGpuLog" Style="{StaticResource LogTextBox}" Foreground="#ff6b35"
+                                     Background="Transparent"/>
+                        </Grid>
 
                         <!-- Footer Stats -->
                         <Border Grid.Row="3" Background="#180808" CornerRadius="0,0,8,8" Padding="8,4">
@@ -823,6 +1050,7 @@
                         </Border>
                     </Grid>
                 </Border>
+
             </Grid>
 
             <!-- Status Bar with Stats - Semi-transparent -->
@@ -853,9 +1081,9 @@
                     <!-- Version & License -->
                     <Border Grid.Column="1" Background="#0a0a14" CornerRadius="4" Padding="8,2" Margin="0,0,8,0" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="v1.0.0" Foreground="{StaticResource AccentBrush}" FontSize="9" FontWeight="Bold"/>
+                            <TextBlock Text="v1.1.0" Foreground="{StaticResource AccentBrush}" FontSize="9" FontWeight="Bold"/>
                             <TextBlock Text=" | " Foreground="#3a3a5a" FontSize="9"/>
-                            <TextBlock Text="© XMan Studio" Foreground="#808090" FontSize="9"/>
+                            <TextBlock Text="© 2025 XMan Studio" Foreground="#808090" FontSize="9"/>
                         </StackPanel>
                     </Border>
 
@@ -880,11 +1108,8 @@
                                    FontSize="11" FontWeight="Bold"/>
                     </StackPanel>
 
-                    <!-- Current Password -->
-                    <Border Grid.Column="4" Background="#0a0a14" CornerRadius="4" Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center">
-                        <TextBlock x:Name="lblCurrentPwd" Text="-" Foreground="{StaticResource AccentBrush}"
-                                   FontSize="10" FontFamily="Consolas" Width="80" TextTrimming="CharacterEllipsis"/>
-                    </Border>
+                    <!-- Current Password (hidden - now shown in CPU log) -->
+                    <TextBlock x:Name="lblCurrentPwd" Text="" Visibility="Collapsed"/>
 
                     <!-- Speed -->
                     <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">

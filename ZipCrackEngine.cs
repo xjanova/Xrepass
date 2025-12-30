@@ -29,6 +29,10 @@ namespace ZipCrackerUI
         public long TotalPossiblePasswords { get; private set; }
         public bool IsRunning { get; private set; }
         public DateTime StartTime { get; private set; }
+
+        // v1.7: Dictionary resume support
+        public long DictionaryLinePosition { get; private set; }  // Current line in dictionary
+        public long ResumeFromLine { get; set; }  // Line to resume from (set before calling attack)
         public string CurrentPattern { get; private set; } = "Idle"; // Current pattern being tested
 
         // Configuration
@@ -369,6 +373,23 @@ namespace ZipCrackerUI
             Log("Stopping...");
         }
 
+        /// <summary>
+        /// Reset engine state for a fresh start (ensures wordlist starts from beginning)
+        /// </summary>
+        public void Reset()
+        {
+            _cts?.Cancel();
+            _cts = new CancellationTokenSource();
+            IsRunning = false;
+            _passwordFound = false;
+            _foundPassword = null;
+            _totalAttempts = 0;
+            _skippedPasswords = 0;
+            _candidatesFound = 0;
+            _isPaused = false;
+            Log("Engine reset for fresh start");
+        }
+
         private async Task SmartAttackAsync()
         {
             // Character sets ordered by probability
@@ -705,6 +726,334 @@ namespace ZipCrackerUI
                         }
                     });
             }, _cts.Token);
+        }
+
+        /// <summary>
+        /// Short brute force (1-3 characters) before dictionary attack - for CPU-only mode
+        /// Uses the selected charset (not just digits)
+        /// </summary>
+        public async Task ShortBruteForceBeforeDictionaryAsync(string dictionaryPath, string charset, int maxShortLength = 3)
+        {
+            _cts = new CancellationTokenSource();
+            IsRunning = true;
+            _passwordFound = false;
+            _foundPassword = null;
+            _totalAttempts = 0;
+            _skippedPasswords = 0;
+            _candidatesFound = 0;
+            StartTime = DateTime.Now;
+
+            // Use provided charset or default to digits
+            string bruteCharset = !string.IsNullOrEmpty(charset) ? charset : "0123456789";
+
+            OnStatusChanged?.Invoke("Running");
+            Log($"=== CPU-ONLY MODE ===");
+            Log($"Phase 1: Quick brute force (1-{maxShortLength} chars)");
+            Log($"Charset: {bruteCharset.Length} characters");
+            Log($"Phase 2: Dictionary attack");
+            Log("");
+
+            try
+            {
+                // Phase 1: Quick brute force for 1-3 character passwords using selected charset
+                for (int len = 1; len <= maxShortLength && !_passwordFound && !_cts.Token.IsCancellationRequested; len++)
+                {
+                    long combos = (long)Math.Pow(bruteCharset.Length, len);
+                    string patternName = $"Brute {len}-char ({bruteCharset.Length}^{len})";
+                    SetCurrentPattern(patternName);
+                    Log($"[Phase 1] {patternName}: {combos:N0} combinations");
+                    TotalPossiblePasswords += combos;
+
+                    await BruteForceLengthAsync(bruteCharset, len, combos);
+                }
+
+                if (_passwordFound)
+                {
+                    OnStatusChanged?.Invoke("Found!");
+                    OnPasswordFound?.Invoke(_foundPassword);
+                    Log($"");
+                    Log($"========================================");
+                    Log($"PASSWORD FOUND: {_foundPassword}");
+                    Log($"========================================");
+                    return;
+                }
+
+                if (_cts.Token.IsCancellationRequested)
+                {
+                    OnStatusChanged?.Invoke("Stopped");
+                    Log("Attack stopped by user.");
+                    return;
+                }
+
+                // Phase 2: Dictionary attack
+                Log("");
+                Log("[Phase 2] Dictionary attack...");
+                SetCurrentPattern("Dictionary");
+
+                if (string.IsNullOrEmpty(dictionaryPath) || !File.Exists(dictionaryPath))
+                {
+                    Log("No dictionary file found - skipping dictionary phase");
+                    OnStatusChanged?.Invoke("Completed");
+                    return;
+                }
+
+                Log($"Wordlist: {Path.GetFileName(dictionaryPath)}");
+
+                // Count lines first
+                long totalLines = 0;
+                using (var countReader = new StreamReader(dictionaryPath))
+                {
+                    while (countReader.ReadLine() != null)
+                        totalLines++;
+                }
+                TotalPossiblePasswords += totalLines;
+                Log($"Passwords in wordlist: {totalLines:N0}");
+
+                // Process dictionary file
+                await Task.Run(() =>
+                {
+                    var passwords = new List<string>();
+                    const int batchSize = 1000;
+
+                    using var reader = new StreamReader(dictionaryPath);
+                    string line;
+
+                    while ((line = reader.ReadLine()) != null && !_passwordFound && !_cts.Token.IsCancellationRequested)
+                    {
+                        // Check if paused
+                        while (_isPaused && !_cts.Token.IsCancellationRequested)
+                        {
+                            lock (_pauseLock)
+                            {
+                                Monitor.Wait(_pauseLock, 100);
+                            }
+                        }
+
+                        if (string.IsNullOrEmpty(line)) continue;
+
+                        passwords.Add(line.Trim());
+
+                        // Process in batches
+                        if (passwords.Count >= batchSize)
+                        {
+                            ProcessPasswordBatch(passwords);
+                            passwords.Clear();
+                        }
+                    }
+
+                    // Process remaining passwords
+                    if (passwords.Count > 0 && !_passwordFound && !_cts.Token.IsCancellationRequested)
+                    {
+                        ProcessPasswordBatch(passwords);
+                    }
+                }, _cts.Token);
+
+                if (_passwordFound)
+                {
+                    OnStatusChanged?.Invoke("Found!");
+                    OnPasswordFound?.Invoke(_foundPassword);
+                    Log($"");
+                    Log($"========================================");
+                    Log($"PASSWORD FOUND: {_foundPassword}");
+                    Log($"========================================");
+                }
+                else if (!_cts.Token.IsCancellationRequested)
+                {
+                    SetCurrentPattern("Completed");
+                    OnStatusChanged?.Invoke("Not Found");
+                    Log("All phases completed - password not found");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                OnStatusChanged?.Invoke("Stopped");
+                Log("Attack stopped by user.");
+            }
+            finally
+            {
+                IsRunning = false;
+            }
+        }
+
+        /// <summary>
+        /// Dictionary attack using external wordlist file - for hybrid mode (CPU)
+        /// </summary>
+        public async Task DictionaryFileAttackAsync(string dictionaryPath)
+        {
+            if (string.IsNullOrEmpty(dictionaryPath) || !File.Exists(dictionaryPath))
+            {
+                Log("ERROR: Dictionary file not found!");
+                Log("Please set dictionary file in Settings");
+                OnStatusChanged?.Invoke("Error");
+                return;
+            }
+
+            _cts = new CancellationTokenSource();
+            IsRunning = true;
+            _passwordFound = false;
+            _foundPassword = null;
+            _totalAttempts = 0;
+            _skippedPasswords = 0;
+            _candidatesFound = 0;
+            DictionaryLinePosition = 0;
+            StartTime = DateTime.Now;
+
+            SetCurrentPattern("Dictionary");
+            OnStatusChanged?.Invoke("Running");
+            Log($"=== CPU DICTIONARY ATTACK ===");
+            Log($"Wordlist: {Path.GetFileName(dictionaryPath)}");
+
+            try
+            {
+                // Count lines first
+                long totalLines = 0;
+                using (var countReader = new StreamReader(dictionaryPath))
+                {
+                    while (countReader.ReadLine() != null)
+                        totalLines++;
+                }
+                TotalPossiblePasswords = totalLines;
+                Log($"Passwords in wordlist: {totalLines:N0}");
+
+                // Check if resuming
+                long skipLines = ResumeFromLine;
+                if (skipLines > 0)
+                {
+                    Log($"Resuming from line {skipLines:N0} (skipping {skipLines:N0} passwords)");
+                    _totalAttempts = skipLines;  // Count skipped as already tested
+                    DictionaryLinePosition = skipLines;
+                }
+                ResumeFromLine = 0;  // Reset for next run
+
+                // Process dictionary file
+                await Task.Run(() =>
+                {
+                    var passwords = new List<string>();
+                    const int batchSize = 1000;
+                    long currentLine = 0;
+
+                    using var reader = new StreamReader(dictionaryPath);
+                    string line;
+
+                    while ((line = reader.ReadLine()) != null && !_passwordFound && !_cts.Token.IsCancellationRequested)
+                    {
+                        currentLine++;
+                        DictionaryLinePosition = currentLine;
+
+                        // Skip lines if resuming
+                        if (currentLine <= skipLines)
+                        {
+                            continue;
+                        }
+
+                        // Check if paused
+                        while (_isPaused && !_cts.Token.IsCancellationRequested)
+                        {
+                            lock (_pauseLock)
+                            {
+                                Monitor.Wait(_pauseLock, 100);
+                            }
+                        }
+
+                        if (string.IsNullOrEmpty(line)) continue;
+
+                        passwords.Add(line.Trim());
+
+                        // Process in batches
+                        if (passwords.Count >= batchSize)
+                        {
+                            ProcessPasswordBatch(passwords);
+                            passwords.Clear();
+                        }
+                    }
+
+                    // Process remaining passwords
+                    if (passwords.Count > 0 && !_passwordFound && !_cts.Token.IsCancellationRequested)
+                    {
+                        ProcessPasswordBatch(passwords);
+                    }
+                }, _cts.Token);
+
+                if (_passwordFound)
+                {
+                    OnStatusChanged?.Invoke("Found!");
+                    OnPasswordFound?.Invoke(_foundPassword);
+                    Log($"");
+                    Log($"========================================");
+                    Log($"PASSWORD FOUND: {_foundPassword}");
+                    Log($"========================================");
+                }
+                else if (!_cts.Token.IsCancellationRequested)
+                {
+                    SetCurrentPattern("Completed");
+                    OnStatusChanged?.Invoke("Dict Done");
+                    Log("Dictionary attack completed - password not found in wordlist");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                OnStatusChanged?.Invoke("Stopped");
+                Log("Dictionary attack stopped by user.");
+            }
+            finally
+            {
+                IsRunning = false;
+            }
+        }
+
+        /// <summary>
+        /// Process a batch of passwords in parallel
+        /// </summary>
+        private void ProcessPasswordBatch(List<string> passwords)
+        {
+            try
+            {
+                Parallel.ForEach(passwords,
+                    new ParallelOptions { MaxDegreeOfParallelism = ThreadCount, CancellationToken = _cts.Token },
+                    (pwd, state) =>
+                    {
+                        if (_passwordFound || _cts.Token.IsCancellationRequested) { state.Stop(); return; }
+
+                        // TestPasswordFast already increments _totalAttempts
+                        if (TestPasswordFast(pwd))
+                        {
+                            if (VerifyPassword(pwd))
+                            {
+                                lock (_lockObj)
+                                {
+                                    _passwordFound = true;
+                                    _foundPassword = pwd;
+                                }
+                                state.Stop();
+                            }
+                        }
+
+                        // Update UI periodically
+                        long count = _totalAttempts;
+                        if (count % 100 == 0)
+                        {
+                            OnPasswordTested?.Invoke(pwd);
+                            OnProgress?.Invoke(count, TotalPossiblePasswords);
+                        }
+                    });
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when user stops or GPU finds password - ignore
+            }
+        }
+
+        /// <summary>
+        /// Signal that password was found (called by MainWindow when GPU finds password)
+        /// </summary>
+        public void SignalPasswordFound(string password)
+        {
+            lock (_lockObj)
+            {
+                _passwordFound = true;
+                _foundPassword = password;
+            }
+            _cts?.Cancel();
         }
 
         private async Task BruteForceAsync(string charset, int? minLen = null, int? maxLen = null)
@@ -1145,6 +1494,8 @@ namespace ZipCrackerUI
             {
                 // Use 't' (test) command instead of 'x' (extract) - much faster!
                 // 7z t -p<password> archive.zip
+                // Note: We use the password directly without extra escaping
+                // because 7-Zip handles most special characters well when quoted
                 var args = $"t -p\"{password}\" \"{ZipFilePath}\"";
 
                 var psi = new ProcessStartInfo
@@ -1180,11 +1531,12 @@ namespace ZipCrackerUI
                 // Check for "Everything is Ok" in output to confirm success
                 bool success = exitCode == 0 && output.Contains("Everything is Ok");
 
-                // Debug: Log when password is found
+                // Only log successful verification (don't log every failed password - causes UI freeze)
                 if (success)
                 {
                     Log($"✓ 7-Zip verified password: {password}");
                 }
+                // Don't log failed passwords - there will be millions of them
 
                 return success;
             }
